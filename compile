@@ -1,0 +1,11 @@
+#!/bin/bash
+# My first script
+ocamlc -c ast.mli
+ocamlc -c -o Askz3.cmo Askz3.ml
+ocamlc -c Askz3.cmo Pretty.ml
+
+
+ocamlc -c -o TimedCSP.cmo  TimedCSP.ml
+
+ocamlc -o timedCSP Pretty.cmo  TimedCSP.cmo
+

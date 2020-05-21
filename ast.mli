@@ -3,7 +3,7 @@ type terms = Var of string
            | Plus of terms * terms
            | Minus of terms * terms 
 
-type event =  string 
+type event = Str of string | TOCK
 (*Arithimetic pure formulae*)
 type pure = TRUE
           | FALSE

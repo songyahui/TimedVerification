@@ -3,7 +3,7 @@ type terms = Var of string
            | Plus of terms * terms
            | Minus of terms * terms 
 
-type event = Str of string | TOCK
+type event = Str of string | TOCK | Any | NotStr of string
 (*Arithimetic pure formulae*)
 type pure = TRUE
           | FALSE
@@ -28,11 +28,14 @@ type process =
         | Deadline of process * int
 
 type mltl = 
+          Bot
+        | Emp
         | Event of event
-        | Neg of mltl 
+        | Neg of event 
         | OrLTL of mltl * mltl 
         | AndLTL of mltl * mltl
         | Until of mltl * int * mltl
         | Finally of int *  mltl
+        | Next of mltl
 
 

@@ -16,6 +16,26 @@ type pure = TRUE
           | PureAnd of pure * pure
           | Neg of pure
 
+(*Event sequence *)
+and es = Bot 
+        | Emp 
+        | Event of event * int option 
+        | Cons of es * es
+        | ESOr of es * es
+        | ESAnd of es * es
+        | Ttimes of es * terms
+        | Kleene of es
+        | Omega of es
+        | Range of (es list)
+        | Not of es
+        | Underline
+
+type timed_effect = Effects of (pure * es) list
+
+
+  
+
+(*
 type process = 
           Stop
         | Skip
@@ -26,7 +46,8 @@ type process =
         | Wait of int
         | Interrupt of process * int * process
         | Deadline of process * int
-
+*)
+(*
 type mltl = 
           Bot
         | Emp
@@ -37,5 +58,4 @@ type mltl =
         | Until of mltl * int * mltl
         | Finally of int *  mltl
         | Next of mltl
-
-
+*)

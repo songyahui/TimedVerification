@@ -12,6 +12,7 @@ open Int32
 
 exception Foo of string
 
+(*
 let compareEv ev1 ev2 : bool =
   match (ev1, ev2) with 
     (Str s1, Str s2) -> String.compare s1 s2 == 0
@@ -123,4 +124,36 @@ let rec intersect l1 l2 =
   )
   );;
 
+let rec fst_mltl (ltl:mltl): event list = 
+  match ltl with 
+    Bot -> []
+  | Emp -> []
+  | Event ev ->
+    (match ev with 
+    | Str str -> [ev] 
+    | _ -> print_string (string_of_mltl ltl) ; raise (Foo "error here!");
+    ) 
+  | Neg ev  -> 
+    match ev with 
+      Str s -> [NotStr ev]
+    | 
+    | 
+  | OrLTL (mltl1, mltl2) ->  List.append (fst_mltl mltl1) (fst_mltl mltl2)
+  | AndLTL (mltl1, mltl2) ->  intersect (fst_mltl mltl1) (fst_mltl mltl2)
+  | Until (mltl1,t, mltl2) ->  List.append (fst_mltl mltl1) (fst_mltl mltl2)
+  | Finally (t, mltlIn) ->  List.append ([Any]) (fst_mltl mltlIn)
+  | Next mltlIn -> fst_mltl mltlIn
+  ;;
 
+let rec derivative_mltl (ltl:mltl) (evP:event): mltl = 
+  match ltl with 
+    Bot -> Bot
+  | Emp -> Bot
+  | Event ev -> if compareEv ev evP then Emp else Bot
+  | Neg ltlIn  -> raise (Foo "I do not know how to do here yet ltl");
+  | OrLTL (mltl1, mltl2) ->  OrLTL (derivative_mltl evP mltl1, derivative_mltl evP mltl2)
+  | AndLTL (mltl1, mltl2) ->  AndLTL (derivative_mltl evP mltl1, derivative_mltl evP mltl2)
+  | Until (mltl1,t, mltl2) ->  List.append (fst_mltl mltl1) (fst_mltl mltl2)
+  | Finally (t, mltlIn) ->  List.append ([Any]) (fst_mltl mltlIn)
+  ;;
+*)

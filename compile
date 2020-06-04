@@ -1,6 +1,11 @@
 #!/bin/bash
 # My first script
+ocamllex lexer.mll
+menhir parser.mly
 ocamlc -c ast.mli
+ocamlc -c parser.mli
+ocamlc -c parser.ml
+ocamlc -c lexer.ml
 ocamlc -c -o Askz3.cmo Askz3.ml
 ocamlc -c Askz3.cmo Pretty.ml
 
@@ -8,4 +13,7 @@ ocamlc -c Askz3.cmo Pretty.ml
 ocamlc -c -o TimedCSP.cmo  TimedCSP.ml
 
 ocamlc -o timedCSP Pretty.cmo  TimedCSP.cmo
+
+
+
 

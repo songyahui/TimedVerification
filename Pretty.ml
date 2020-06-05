@@ -12,6 +12,85 @@ open Int32
 
 exception Foo of string
 
+let rec input_lines file =
+  match try [input_line file] with End_of_file -> [] with
+   [] -> []
+  | [line] -> (String.trim line) :: input_lines file
+  | _ -> failwith "Weird input_line return value"
+
+  ;;
+
+let rec string_of_cocons (con:cocon) : string = 
+  match con with 
+    CCTop -> "T"
+  | CCBot -> "_|_"
+  | CCLT (clock, n) -> clock ^ " < " ^ string_of_int n 
+  | CCLTEQ  (clock, n) -> clock ^ " <= " ^ string_of_int n 
+  | CCGT (clock, n) -> clock ^ " > " ^ string_of_int n 
+  | CCGTEQ (clock, n) -> clock ^ " >= " ^ string_of_int n 
+  | CCAND (co1, co2) -> string_of_cocons  co1 ^ " /\\ " ^ string_of_cocons co2
+
+
+let rec string_of_transition (ev:t_trans)  : string = 
+  match ev with 
+    Trans (a, b, c) -> 
+      let temp  = List.fold_left (fun acc a -> acc ^ " "^ a) "" c in 
+      let aa = (match a with 
+                EV str -> str
+              | TEmp -> "emp"
+      ) in 
+      "[" ^ aa ^", " ^ string_of_cocons b ^", "^ "(" ^temp ^")" ^"]"
+  | NotTrans ev1 -> "!"^ string_of_transition ev1
+  ;;
+
+(*To pretty print terms*)
+let rec showTerms (t:terms):string = 
+  match t with
+    Var name -> name
+  | Number n -> string_of_int n
+  | Plus (t1, t2) -> (showTerms t1) ^ ("+") ^ (showTerms t2)
+  | Minus (t1, t2) -> (showTerms t1) ^ ("-") ^ (showTerms t2)
+
+  ;;
+
+(*To pretty print pure formulea*)
+let rec showPure (p:pure):string = 
+  match p with
+    TRUE -> "true"
+  | FALSE -> "false"
+  | Gt (t1, t2) -> (showTerms t1) ^ ">" ^ (showTerms t2)
+  | Lt (t1, t2) -> (showTerms t1) ^ "<" ^ (showTerms t2)
+  | GtEq (t1, t2) -> (showTerms t1) ^ ">=" ^ (showTerms t2)
+  | LtEq (t1, t2) -> (showTerms t1) ^ "<=" ^ (showTerms t2)
+  | Eq (t1, t2) -> (showTerms t1) ^ "=" ^ (showTerms t2)
+  | PureOr (p1, p2) -> "("^showPure p1 ^ "\\/" ^ showPure p2^")"
+  | PureAnd (p1, p2) -> "("^showPure p1 ^ "/\\" ^ showPure p2^")"
+  | Neg p -> "(!" ^ "(" ^ showPure p^"))"
+  ;; 
+
+let rec string_of_timedES (tes:t_es):string = 
+  match tes with 
+    Nil -> "Tbot"
+  | Single tran -> string_of_transition tran 
+  | TCons (tes1, tes2) -> string_of_timedES tes1 ^" . " ^ string_of_timedES tes2 
+  | TOr (tes1, tes2) -> string_of_timedES tes1 ^" | " ^ string_of_timedES tes2 
+  | TNtimes (tesIn, t) -> "("^(string_of_timedES tesIn) ^ "^" ^ (showTerms t)^")"
+  | TKleene esIn -> "(" ^ (string_of_timedES esIn) ^ "^" ^ "*"^")"
+  | TAny -> "_"
+  ;;
+
+let rec string_of_timedEff (effL :t_effect): string = 
+  match effL with 
+    [] -> ""
+  | (p, t_es) ::xs -> 
+    let temp = showPure p  ^ "/\\" ^ string_of_timedES t_es
+    in temp ^ string_of_timedEff xs
+    ;;
+
+let string_of_timedEE (lhs, rhs) :string = 
+  string_of_timedEff lhs ^ " |- " ^ string_of_timedEff rhs 
+  ;;
+
 (*
 let compareEv ev1 ev2 : bool =
   match (ev1, ev2) with 

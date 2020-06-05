@@ -78,50 +78,27 @@ type program = declare list
 
 type clock = string
 
-type cc = Top | Bot 
+type cocon = CCTop 
+          | CCBot 
           | CCLT of clock * int 
           | CCLTEQ  of clock * int 
           | CCGT of clock * int 
           | CCGTEQ of clock * int 
-          | CCAND of cc * cc
+          | CCAND of cocon * cocon
+
+type t_ev = EV of event | TEmp
+
+type t_trans  = Trans of (t_ev * cocon * (clock list)) | NotTrans of t_trans
 
 (*Event sequence *)
 type t_es = Nil 
-        | Emp 
-        | Trans of (event * cc * clock list)
-        | Cons of t_es * t_es
-        | ESOr of t_es * t_es
-        | Ttimes of t_es * terms
-        | Kleene of t_es
-        | Not of t_es
-        | Underline
+        | Single of t_trans
+        | TCons of t_es * t_es
+        | TOr of t_es * t_es
+        | TNtimes of t_es * terms
+        | TKleene of t_es
+        | TAny
 
-type timed_effect = Effects of (pure * t_es) list
+type t_effect = (pure * t_es) list
 
-
-  
-
-(*
-type process = 
-          Stop
-        | Skip
-        | EventPre of event * process
-        | Choice of process * process
-        | Follow of process * process
-        | Parallel of process * process
-        | Wait of int
-        | Interrupt of process * int * process
-        | Deadline of process * int
-*)
-(*
-type mltl = 
-          Bot
-        | Emp
-        | Event of event
-        | Neg of event 
-        | OrLTL of mltl * mltl 
-        | AndLTL of mltl * mltl
-        | Until of mltl * int * mltl
-        | Finally of int *  mltl
-        | Next of mltl
-*)
+type t_entilment =  (t_effect * t_effect)

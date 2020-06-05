@@ -12,7 +12,7 @@ ocamlc -c Askz3.cmo Pretty.ml
 
 ocamlc -c -o TimedCSP.cmo  TimedCSP.ml
 
-ocamlc -o timedCSP Pretty.cmo  TimedCSP.cmo
+ocamlc -o timedCSP parser.cmo lexer.cmo Pretty.cmo TimedCSP.cmo
 
 
 

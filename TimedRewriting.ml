@@ -3,45 +3,299 @@ open Printf
 open Askz3
 open String
 open Pretty
+open List
 
-(*
-let a = Event (Str "A");;
-let test = EventPre (Str "A", Stop);;
-let testltl = Until (a, 5, a);;
-let testltl1 = Finally (5, a);;
-*)
+
+let rec getAllVarFromTerm term = 
+  match term with 
+    Var str -> [str]
+  | Number _ -> []
+  | Plus (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+  | Minus (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+  ;;
+
+let rec getAllVarFromPi (pi:pure): string list  = 
+    match pi with 
+      TRUE -> []
+    | FALSE -> []
+    | Gt (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+    | Lt (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+    | GtEq (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+    | LtEq (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+    | Eq (t1, t2) -> List.append (getAllVarFromTerm t1) (getAllVarFromTerm t2)
+    | PureOr (p1, p2) -> List.append (getAllVarFromPi p1) (getAllVarFromPi p2)
+    | PureAnd (p1, p2) -> List.append (getAllVarFromPi p1) (getAllVarFromPi p2)
+    | Neg p1 -> getAllVarFromPi p1
+;;
+
+
+let rec getAllVarFromTimedES (tes:t_es) = 
+  match tes with
+  | TNtimes (_, Var s) -> [s]
+  | TNtimes (_, Plus (Var s, _ )) -> [s]
+  | TNtimes (_, Minus (Var s, _ )) -> [s]
+  | TCons (es1, es2) -> List.append (getAllVarFromTimedES es1 ) (getAllVarFromTimedES es2 ) 
+  | TOr (es1, es2) -> List.append (getAllVarFromTimedES es1 ) (getAllVarFromTimedES es2 ) 
+  | TKleene (esIn) -> getAllVarFromTimedES esIn
+  | _ -> []
+  ;;
+
+let rec getAllVarFromTimedEff (eff:t_effect): string list = 
+  match eff with 
+  | TEff (pi, es) -> getAllVarFromTimedES es
+  | TDisj (eff1, eff2) -> List.append (getAllVarFromTimedEff eff1) (getAllVarFromTimedEff eff2)
+;;
+
+let rec t_splitDisj (p:pure) (es:t_es):t_effect =
+  match p with 
+    PureOr (p1, p2) -> TDisj (t_splitDisj p1 es , t_splitDisj p2 es ) 
+  | _ -> TEff (p, es) 
+  ;;
+
+let rec normalPureToDisj (p:pure):pure = 
+  match p with 
+    PureAnd (p1, PureOr(pIn1, pIn2)) ->  
+      let dealP1 = normalPureToDisj p1 in
+      let temp1 = normalPureToDisj (PureAnd(dealP1, pIn1)) in 
+      let temp2 = normalPureToDisj (PureAnd(dealP1, pIn2)) in 
+      PureOr (temp1 , temp2 )
+  | PureAnd (PureOr(pIn1, pIn2), p2) ->  
+      let dealP2 = normalPureToDisj p2 in
+      let temp1 = normalPureToDisj (PureAnd(dealP2, pIn1)) in 
+      let temp2 = normalPureToDisj (PureAnd(dealP2, pIn2)) in 
+      PureOr (temp1 , temp2 )
+  | Neg pi -> Neg (normalPureToDisj pi)
+  | _ -> p
+  ;;
+
+let rec deletePureOrInTEff (eff:t_effect):t_effect = 
+  match eff with 
+    TEff (pi, es) -> 
+      let disjPure = normalPureToDisj pi in
+      t_splitDisj disjPure es 
+  | TDisj (eff1, eff2) -> TDisj ((deletePureOrInTEff eff1), (deletePureOrInTEff eff2))
+  ;;
+
+let rec stricTcompareTerm (term1:terms) (term2:terms) : bool = 
+  match (term1, term2) with 
+    (Var s1, Var s2) -> String.compare s1 s2 == 0
+  | (Number n1, Number n2) -> n1 == n2 
+  | (Plus (tIn1, num1), Plus (tIn2, num2)) -> stricTcompareTerm tIn1 tIn2 && stricTcompareTerm num1  num2
+  | (Minus (tIn1, num1), Minus (tIn2, num2)) -> stricTcompareTerm tIn1 tIn2 && stricTcompareTerm num1  num2
+  | _ -> false 
+  ;;
+
+let rec comparePure (pi1:pure) (pi2:pure):bool = 
+  match (pi1 , pi2) with 
+    (TRUE, TRUE) -> true
+  | (FALSE, FALSE) -> true 
+  | (Gt (t1, t11), Gt (t2, t22)) -> stricTcompareTerm t1 t2 && stricTcompareTerm t11  t22
+  | (Lt (t1, t11), Lt (t2, t22)) -> stricTcompareTerm t1 t2 && stricTcompareTerm t11  t22
+  | (GtEq (t1, t11), GtEq (t2, t22)) -> stricTcompareTerm t1 t2 && stricTcompareTerm t11  t22
+  | (LtEq (t1, t11), LtEq (t2, t22)) -> stricTcompareTerm t1 t2 && stricTcompareTerm t11  t22
+  | (Eq (t1, t11), Eq (t2, t22)) -> stricTcompareTerm t1 t2 && stricTcompareTerm t11  t22
+  | (PureOr (p1, p2), PureOr (p3, p4)) ->
+      (comparePure p1 p3 && comparePure p2 p4) || (comparePure p1 p4 && comparePure p2 p3)
+  | (PureAnd (p1, p2), PureAnd (p3, p4)) ->
+      (comparePure p1 p3 && comparePure p2 p4) || (comparePure p1 p4 && comparePure p2 p3)
+  | (Neg p1, Neg p2) -> comparePure p1 p2
+  | _ -> false
+  ;;
+
+let rec getAllPi piIn acc= 
+    (match piIn with 
+      PureAnd (pi1, pi2) -> List.append (getAllPi pi1 acc ) (getAllPi pi2 acc )
+    | _ -> List.append acc [piIn]
+    )
+    ;;
+
+let rec existPi pi li = 
+    (match li with 
+      [] -> false 
+    | x :: xs -> if comparePure pi x then true else existPi pi xs 
+    )
+    ;;
+let entailConstrains pi1 pi2 = 
+
+  let sat = not (askZ3 (Neg (PureOr (Neg pi1, pi2)))) in
+  (*
+  print_string (showPure pi1 ^" -> " ^ showPure pi2 ^" == ");
+  print_string (string_of_bool (sat) ^ "\n");
+  *)
+  sat;;
+
+let rec normalPure (pi:pure):pure = 
+  let allPi = getAllPi pi [] in
+  let rec clear_Pi pi li = 
+    (match li with 
+      [] -> [pi]
+    | x :: xs -> if existPi pi li then clear_Pi x xs else List.append [pi] (clear_Pi x xs)
+    )in 
+  let finalPi = clear_Pi TRUE allPi in
+  let rec connectPi li acc = 
+    (match li with 
+      [] -> acc 
+    | x :: xs -> if entailConstrains TRUE x then (connectPi xs acc) else PureAnd (x, (connectPi xs acc)) 
+    ) in 
+  let filte_true = List.filter (fun ele-> not (comparePure ele TRUE)  ) finalPi in 
+  if length filte_true == 0 then  TRUE
+  else connectPi (tl filte_true) (hd filte_true)
+  ;;
+
+let normalTES (es:t_es) (pi:pure) :t_es = 
+  es;;
+
+type rule = LHSOR   | RHSOR 
+          | LHSEX   | RHSEX 
+          | LHSSUB  | RHSSUB 
+          | LHSCASE | RHSCASE 
+          | UNFOLD  | DISPROVE 
+          | FRAME   | REOCCUR
+          | RHSAND
+
+let showRule (r:rule):string = 
+  match r with
+    LHSOR -> " [LHSOR] "
+  | RHSAND -> " [RHSAND] "
+  | RHSOR -> " [RHSOR] "
+  | LHSEX -> " [LHSEX] "  
+  | RHSEX -> " [RHSEX] " 
+  | LHSSUB -> " [LHSSUB] "
+  | RHSSUB -> " [RHSSUB] "
+  | LHSCASE -> " [LHSCASE] "
+  | RHSCASE -> " [RHSCASE] "
+  | UNFOLD  -> " [UNFOLD] "
+  | DISPROVE -> " [DISPROVE] "
+  | FRAME  -> " [FRAME] "
+  | REOCCUR -> " [REOCCUR] "
+
+let rec compareTimedEff eff1 eff2 =
+  match (eff1, eff2) with
+  | (TEff(FALSE, _ ), TEff(FALSE, _)) -> true 
+  | (TEff(FALSE, _ ), TEff(_, Nil )) -> true 
+  | (TEff(_, Nil), TEff(FALSE, _ )) -> true 
+  | (TEff(_, Nil ), TEff(_, Nil)) -> true 
+
+ (* | (TEff (pi1, es1), TEff (pi2, es2 )) -> compareTimedES es1 es2*)
+  | (TDisj (eff11, eff12), TDisj (eff21, eff22)) -> 
+      let one =  (compareTimedEff eff11  eff21) && (compareTimedEff eff12  eff22) in
+      let two =  (compareTimedEff eff11  eff22) && (compareTimedEff eff12  eff21 ) in
+      one || two
+  | _ -> false
+  ;;
+
+let rec normalTimedEffect (eff:t_effect) :t_effect =eff
+
+  (*
+  let noPureOr  = deletePureOrInTEff eff in 
+  match noPureOr with
+  | TEff (p, es) -> 
+      if (askZ3 p) == false then 
+        ( 
+          (*print_string (showPure p^"   "^ showES es^ "\n 11********\n");*)
+          TEff (FALSE, es)
+        )
+      else 
+        let p_normal = normalPure p in 
+        let es_normal  = normalTES es p in
+        (match es_normal with 
+          TOr (es_nor1, es_nor2) -> TDisj (TEff (p_normal, es_nor1), TEff (p_normal, es_nor2))
+        | _ -> TEff ( p_normal, es_normal)
+        )
+  | TDisj (eff1, eff2) -> 
+      let normaedEff1 = normalTimedEffect eff1  in 
+      let normaedEff2 = normalTimedEffect eff2  in 
+      match (normaedEff1, normaedEff2 ) with
+        (TEff (_,  Nil  ), _) -> normaedEff2
+      | (_, TEff (_,  Nil)) -> normaedEff1
+      | (TEff (FALSE,  _), _) -> normaedEff2
+      | (_, TEff (FALSE,  _)) -> normaedEff1
+
+      | (TDisj(eff1In, eff2In), norml_eff2 ) ->
+        if compareTimedEff norml_eff2 eff1In || compareTimedEff norml_eff2 eff2In then TDisj(eff1In, eff2In)
+        else TDisj (TDisj(eff1In, eff2In), norml_eff2 )
+      | (norml_eff2, TDisj(eff1In, eff2In) ) ->
+        if compareTimedEff norml_eff2 eff1In || compareTimedEff norml_eff2 eff2In then TDisj(eff1In, eff2In)
+        else TDisj (norml_eff2, TDisj(eff1In, eff2In))
+
+      | _ -> TDisj (normaedEff1, normaedEff2)
+      *)
+  ;;
+
+let rec sublist b e l = 
+  if b > e then [] else 
+  match l with
+    [] -> raise (Foo  "sublist")
+  | h :: t -> 
+     let tail = if e=0 then [] else sublist (b-1) (e-1) t in
+     if b>0 then tail else h :: tail
+;;
+
+let rec t_nullable (pi :pure) (es:t_es) : bool=
+  match es with
+    Nil -> false
+  | Single tran -> false
+  | TCons (es1 , es2) -> (t_nullable pi es1) && (t_nullable pi es2)
+  | TOr (es1 , es2) -> (t_nullable pi es1) || (t_nullable pi es2)
+  | TNtimes (es1, t) -> askZ3 (PureAnd (pi, Eq (t, Number 0))) 
+  | TKleene es1 -> true
+  | TAny -> false 
+
+  ;;
+
+let rec t_checkNullable (eff:t_effect):bool = 
+  match eff with 
+    TEff (pi, es) -> t_nullable pi es
+  | TDisj (eff1, eff2) -> t_checkNullable eff1 || t_checkNullable eff2 
+;;
 
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
+
+
+  let normalFormL = normalTimedEffect effL in 
+  let normalFormR = normalTimedEffect effR in
+
+  
   (*
-    print_string (string_of_int (List.length delta)^"\n");
-  let startTimeStamp = Sys.time() in
+  let varList = getAllVarFromTimedEff normalFormL in 
+  *)
+  let showEntail  = string_of_TimedEntailmentEff normalFormL normalFormR in 
 
-
-
-  let normalFormL = normalEffect effL 0 in 
-  let normalFormR = normalEffect effR 0 in
-
-  let verification_time = "[normalEffect Time: " ^ string_of_float (Sys.time() -. startTimeStamp) ^ " s]\n" in
-
-  print_string (verification_time);
+  match (normalFormL, normalFormR) with 
+  (TEff(FALSE, _), _) -> (Node(showEntail ^ "   [Nil-LHS]", []), true, 0, [])  
+  | (TEff(_, Nil), _) -> (Node(showEntail ^ "   [Nil-LHS]", []), true, 0, [])  
+  | (_, TEff(FALSE, _)) -> (Node(showEntail ^ "   [DISPROVE]", []), false, 0, [])  
+  | (_, TEff(_, Nil)) -> (Node(showEntail ^ "   [DISPROVE]", []), false, 0, [])  
   
-  
-  let varList = getAllVarFromEff normalFormL in 
-  let showEntail  = (*showEntailmentEff effL effR ^ " ->>>> " ^*) showEntailmentEff normalFormL normalFormR in 
+  | (TDisj (effL1, effL2), _) -> 
+    (*[LHSOR]*)
+      let (tree1, re1, states1 , hypo ) = (t_containment effL1 effR delta mode) in
+      if re1 == false then (Node (showEntail ^ showRule LHSOR, [tree1] ),  false, states1, [])
+      else 
+        (
+        (*print_string ("lallalallalal\n");*)
+        let (tree2, re2 , states2, hypo1) = (t_containment effL2 effR (List.append delta (sublist (List.length delta) (List.length hypo -1 ) hypo)) mode) in
+        (Node (showEntail ^ showRule LHSOR, [tree1; tree2] ), re2, states1+states2, hypo1)
+        )
 
-in 
-*)
+  (****If worriy of comokenness, need to delete this part. *****)
+  | ( _, TDisj (effL1, effL2)) -> 
+    (*[RHSOR]*)
+      let (tree1, re1, states1, hypo ) = (t_containment normalFormL effL1 delta mode) in
+      if re1 == true then (Node (showEntail ^ showRule RHSOR, [tree1] ),  true, states1, hypo)
+      else 
+        let (tree2, re2 , states2, hypo1) = (t_containment normalFormL effL2  delta mode) in 
+        (Node (showEntail ^ showRule RHSOR, [tree2] ), re2, states2, hypo1)
+    (****If worriy of comokenness, need to delete this part. *****)
+
+  | (TEff (piL, esL),_) -> 
+    if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
+
+else
 (Node ("TESTING",[] ), true, 1, delta) 
 ;;
 
 let printReportHelper lhs rhs (mode:bool): (binary_tree * bool * int * t_hypotheses) = 
-  (*
-  let delta = getProductHypo lhs rhs in 
-    let varList = append (getAllVarFromEff lhs) (getAllVarFromEff rhs) in  
-  let varList = getAllVarFromEff lhs in  
-
-  *)
-
   t_containment lhs rhs [] mode
   ;;
 

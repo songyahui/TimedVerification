@@ -130,10 +130,9 @@ let rec string_of_timedES (tes:t_es):string =
 
 let rec string_of_timedEff (effL :t_effect): string = 
   match effL with 
-    [] -> ""
-  | (p, t_es) ::xs -> 
-    let temp = showPure p  ^ "/\\" ^ string_of_timedES t_es
-    in temp ^ string_of_timedEff xs
+  | TEff (p, t_es)  -> showPure p  ^ "/\\" ^ string_of_timedES t_es
+  | TDisj (eff1, eff2) -> string_of_timedEff eff1 ^ "\\/" ^ string_of_timedEff eff2
+
     ;;
 
 let string_of_TimedEntailmentEff lhs rhs :string = 

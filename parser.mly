@@ -202,8 +202,8 @@ t_es:
 
 
 t_effect:
-| a = pure  CONJ  b= t_es  {[(a, b)]}
-| a = t_effect  DISJ  b=t_effect  {List.append a b }
+| a = pure  CONJ  b= t_es  {TEff (a, b)}
+| a = t_effect  DISJ  b=t_effect  {TDisj (a, b) }
 | LPAR r = t_effect RPAR { r }
 
 

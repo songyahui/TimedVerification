@@ -99,7 +99,8 @@ type t_es = Nil
         | TKleene of t_es
         | TAny
 
-type t_effect = (pure * t_es) list
+type t_effect = TEff of pure * t_es | TDisj of t_effect * t_effect
+                
 
 type t_entilment =  (t_effect * t_effect)
 

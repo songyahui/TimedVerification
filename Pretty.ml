@@ -12,6 +12,55 @@ open Int32
 
 exception Foo of string
 
+let rec iter f = function
+  | [] -> ()
+  | [x] ->
+      f true x
+  | x :: tl ->
+      f false x;
+      iter f tl
+
+let to_buffer ?(line_prefix = "") ~get_name ~get_children buf x =
+  let rec print_root indent x =
+    bprintf buf "%s\n" (get_name x);
+    let children = get_children x in
+    iter (print_child indent) children
+  and print_child indent is_last x =
+    let line =
+      if is_last then
+        "└── "
+      else
+        "├── "
+    in
+    bprintf buf "%s%s" indent line;
+    let extra_indent =
+      if is_last then
+        "    "
+      else
+        "│   "
+    in
+    print_root (indent ^ extra_indent) x
+  in
+  Buffer.add_string buf line_prefix;
+  print_root line_prefix x
+
+let printTree ?line_prefix ~get_name ~get_children x =
+  let buf = Buffer.create 1000 in
+  to_buffer ?line_prefix ~get_name ~get_children buf x;
+  Buffer.contents buf
+
+type binary_tree =
+  | Node of string * (binary_tree  list )
+  | Leaf
+
+let get_name = function
+    | Leaf -> "."
+    | Node (name, li) -> name;;
+
+let get_children = function
+    | Leaf -> []
+    | Node (_, li) -> List.filter ((<>) Leaf) li;;
+
 let rec input_lines file =
   match try [input_line file] with End_of_file -> [] with
    [] -> []
@@ -87,7 +136,7 @@ let rec string_of_timedEff (effL :t_effect): string =
     in temp ^ string_of_timedEff xs
     ;;
 
-let string_of_timedEE (lhs, rhs) :string = 
+let string_of_TimedEntailmentEff lhs rhs :string = 
   string_of_timedEff lhs ^ " |- " ^ string_of_timedEff rhs 
   ;;
 

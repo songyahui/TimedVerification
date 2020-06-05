@@ -102,3 +102,5 @@ type t_es = Nil
 type t_effect = (pure * t_es) list
 
 type t_entilment =  (t_effect * t_effect)
+
+type t_hypotheses = (t_effect * t_effect) list

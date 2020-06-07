@@ -240,7 +240,6 @@ let rec t_nullable (pi :pure) (es:t_es) : bool=
   | TNtimes (es1, t) -> askZ3 (PureAnd (pi, Eq (t, Number 0))) 
   | TKleene es1 -> true
   | TAny -> false 
-
   ;;
 
 let rec t_checkNullable (eff:t_effect):bool = 
@@ -248,6 +247,24 @@ let rec t_checkNullable (eff:t_effect):bool =
     TEff (pi, es) -> t_nullable pi es
   | TDisj (eff1, eff2) -> t_checkNullable eff1 || t_checkNullable eff2 
 ;;
+
+let rec t_fst (pi :pure) (es:t_es): (t_trans) list = 
+  match es with
+    Nil -> []      first function.....
+  | Event (str, p) ->  [(str, p)]
+  | Ttimes (es1, t) -> t_fst pi es1
+  | Cons (es1 , es2) ->  if nullable pi es1 then append (t_fst pi es1) (t_fst pi es2) else t_fst pi es1
+  | ESOr (es1, es2) -> append (t_fst pi es1) (t_fst pi es2)
+  | Underline -> [("_",None)]
+  | Kleene es1 -> t_fst pi es1
+  | Not es1 -> t_fst pi es1
+;;
+
+let rec t_checkFst (eff:t_effect) : t_trans list = 
+  match eff with
+    TEff (pi, es) -> t_fst pi es
+  | TDisj (eff1, eff2) -> append (t_checkFst eff1) (t_checkFst eff2) 
+ ;;
 
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
 
@@ -260,6 +277,26 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
   let varList = getAllVarFromTimedEff normalFormL in 
   *)
   let showEntail  = string_of_TimedEntailmentEff normalFormL normalFormR in 
+  let unfold eff1 eff2 del = 
+    let fstL = t_checkFst eff1 in 
+    let deltaNew = List.append [(eff1, eff2)] del  in
+
+    let rec chceckResultAND li acc staacc hypoacc:(bool *binary_tree list* int * hypotheses)=
+      (match li with 
+        [] -> (true, acc, staacc, hypoacc ) 
+      | ev::fs -> 
+          (*print_string ("\n"^string_of_Event ev^"\n\n");
+          *)
+          let deriL = checkDerivative eff1 ev varList in
+          let deriR = checkDerivative eff2 ev varList in
+          let (tree, re, states, hypo) =  containment1 deriL deriR hypoacc mode in 
+          if re == false then (false , tree::acc, staacc+states, [])
+          else chceckResultAND fs (tree::acc) (staacc+states)  (hypo)
+      )
+    in 
+    let (resultFinal, trees, states, hypy ) = chceckResultAND fstL [] 0 deltaNew in 
+    (Node (showEntail ^ "   [UNFOLD]",trees ), resultFinal, states+1, hypy)    
+  in 
 
   match (normalFormL, normalFormR) with 
   (TEff(FALSE, _), _) -> (Node(showEntail ^ "   [Nil-LHS]", []), true, 0, [])  

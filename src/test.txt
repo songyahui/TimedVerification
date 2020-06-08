@@ -1,1 +1,14 @@
-(n>0 /\ [ A, a<1, { a, b} ] ) |- (TRUE /\  [ emp, a<1, { a, b} ] . [ A, a< 1 /\ b > 2, { a, b} ]);
+(TRUE /\ [ A, a<1, { a, b} ] ) |- (TRUE /\  [ emp, a<1, { a, b} ] | [ A, a< 1 /\ b > 2, { a, b} ]);
+
+
+(TRUE /\ [ A, a<1, { a} ] ) |- (TRUE /\  [ emp, a<1, { a, b} ] | [ A, a< 1 /\ b > 2, { a, b} ]);
+
+(TRUE /\ [ A, a<1, { a, b} ] ) |- (TRUE /\  [ emp, a<1, { a, b} ] | [ A, a< 1 /\ b > 2, { a} ]);
+
+
+(TRUE /\ [ A, a<1, { a, b} ] ) |- (TRUE /\  [ emp, a<1, { a, b} ] . [ A, a< 1 /\ b > 2, { a, b} ]);
+
+
+(TRUE /\ [ A, a<1, { a, b} ] ) |- (TRUE /\  _);
+
+(TRUE /\ ([ A, a<1, { a, b} ]^*) ) |- (TRUE /\  (_^*));

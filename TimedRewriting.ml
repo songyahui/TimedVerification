@@ -253,6 +253,52 @@ type rule = LHSOR   | RHSOR
           | FRAME   | REOCCUR
           | RHSAND
 
+
+let rec compareTerm (term1:terms) (term2:terms) : bool = 
+  match (term1, term2) with 
+    (Var s1, Var s2) -> true
+  | (Number n1, Number n2) -> n1 == n2 
+  | (Plus (tIn1, num1), Plus (tIn2, num2)) -> compareTerm tIn1 tIn2 && compareTerm num1  num2
+  | (Minus (tIn1, num1), Minus (tIn2, num2)) -> compareTerm tIn1 tIn2 && compareTerm num1  num2
+  | _ -> false 
+  ;;
+
+let rec subsetOf (small : string list) (big : string list) :bool = 
+  let rec oneOf a set :bool = 
+    match set with 
+      [] -> false 
+    | y:: ys -> if String.compare a y == 0 then true else oneOf a ys
+  in 
+  match small with 
+    [] -> true 
+  | x :: xs -> if oneOf x big == false then false else subsetOf xs big
+;;
+
+let rec compareTimedES es1 es2 = 
+  match (es1, es2) with 
+    (Nil, Nil) -> true
+  | (ESEMP, ESEMP) -> true
+  | (Single tran1, Single tran2) ->
+  (
+    match (tran1, tran2) with 
+      (Trans (TEmp, c1, re1), Trans (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
+    | (Trans (EV ev1, c1, re1), Trans (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
+    | _ -> false
+  )
+  | (TCons (es1L, es1R), TCons (es2L, es2R)) -> (compareTimedES es1L es2L) && (compareTimedES es1R es2R)
+  | (TOr (es1L, es1R), TOr (es2L, es2R)) -> 
+      let one = ((compareTimedES es1L es2L) && (compareTimedES es1R es2R)) in
+      let two =  ((compareTimedES es1L es2R) && (compareTimedES es1R es2L)) in 
+      one || two
+  | (TNtimes (esL, termL), TNtimes (esR, termR)) -> 
+      let insideEq = (compareTimedES esL esR) in
+      let termEq = compareTerm termL termR in
+      insideEq && termEq
+  | (TKleene esL, TKleene esR) -> compareTimedES esL esR
+  | (TAny, TAny ) -> true
+  | _ -> false
+;;
+
 let showRule (r:rule):string = 
   match r with
     LHSOR -> " [LHSOR] "
@@ -367,16 +413,7 @@ let rec t_checkFst (eff:t_effect) : t_trans list =
   | TDisj (eff1, eff2) -> append (t_checkFst eff1) (t_checkFst eff2) 
  ;;
 
-let rec subsetOf (small : string list) (big : string list) :bool = 
-  let rec oneOf a set :bool = 
-    match set with 
-      [] -> false 
-    | y:: ys -> if String.compare a y == 0 then true else oneOf a ys
-  in 
-  match small with 
-    [] -> true 
-  | x :: xs -> if oneOf x big == false then false else subsetOf xs big
-;;
+
 
 let rec t_t_appendEff_ES eff es = 
   match eff with 
@@ -447,12 +484,37 @@ let rec t_addEntailConstrain (eff:t_effect) (pi:pure) :t_effect =
   | TDisj (eff1, eff2) -> TDisj(t_addEntailConstrain eff1 pi, t_addEntailConstrain eff2 pi)
   ;;
 
+let rec t_splitEffects eff : (pure * t_es) list = 
+  match eff with 
+    TEff (p1, es1) -> [(p1, es1)]
+  | TDisj (eff1, eff2) -> List.append (t_splitEffects eff1) (t_splitEffects eff2)
+  ;;
 
+let t_effectEntailSyntatically eff1 eff2 :bool =
+  let effsL = t_splitEffects eff1 in 
+  let effsR = t_splitEffects eff2 in
+  let rec checkSingle piL esL liR:bool = 
+    match liR with
+      [] -> false  
+    | (piR, esR)::xs -> if compareTimedES esL esR && (t_nullable piR esR == t_nullable piL esL)then true else checkSingle piL esL xs
+  in 
+  List.fold_right (fun (piL, esL) acc -> acc && checkSingle piL esL effsR) (effsL) true 
+  ;;
 
 let rec t_checkDerivative  (eff:t_effect) (ev:t_trans) (varL :var list): t_effect = 
   match eff with 
     TEff (pi, es) -> t_derivative pi es varL ev
   | TDisj (eff1, eff2) -> TDisj (t_checkDerivative eff1 ev varL, t_checkDerivative eff2 ev varL)
+  ;;
+
+let rec t_checkReoccur (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) :bool =
+  let checkSingle (hypoL:t_effect) (hypoR:t_effect) = 
+    t_effectEntailSyntatically effL hypoL && t_effectEntailSyntatically hypoR effR 
+  in 
+  match delta with
+    [] -> false 
+  | (hyL, hyR)::xs -> 
+    if checkSingle hyL hyR then true else t_checkReoccur effL effR xs
   ;;
 
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
@@ -515,7 +577,8 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
     (****If worriy of comokenness, need to delete this part. *****)
 
   | (TEff (piL, esL),_) -> 
-    if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
+    if t_checkReoccur normalFormL normalFormR delta then (Node(showEntail ^ "   [Reoccur]", []), true, 0, delta) 
+    else if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
 
 else unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
 (*Node ("TESTING",[] ), true, 1, delta*) 
@@ -546,7 +609,7 @@ print_string (inputfile ^ "\n" ^ outputfile^"\n");*)
   let ic = open_in inputfile in
   try
       let lines =  (input_lines ic ) in
-      let line = List.fold_right (fun x acc -> acc ^ "\n" ^ x) (List.rev lines) "" in
+      let line = List.fold_right (fun x acc -> acc ^ "\n" ^ x) ((*List.rev*) lines) "" in
       let raw_prog = Parser.t_entailment_p Lexer.token (Lexing.from_string line) in
 
       let prove_re = List.fold_right (fun (lhs, rhs) acc -> acc ^ (printReport lhs rhs false)) raw_prog ""  in

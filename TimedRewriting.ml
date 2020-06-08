@@ -115,6 +115,18 @@ let rec existPi pi li =
     | x :: xs -> if comparePure pi x then true else existPi pi xs 
     )
     ;;
+
+let rec coconToPure (co:cocon) :pure = 
+  match co with 
+    CCTop -> TRUE
+  | CCBot -> FALSE
+  | CCLT (clock, num) -> Lt (Var clock, Number num)
+  | CCLTEQ (clock, num) -> LtEq (Var clock, Number num)
+  | CCGT (clock, num) -> Gt (Var clock, Number num)
+  | CCGTEQ (clock, num) -> GtEq (Var clock, Number num)
+  | CCAND (cocon1, cocon2) -> PureAnd (coconToPure cocon1, coconToPure cocon2)
+  ;;
+
 let entailConstrains pi1 pi2 = 
 
   let sat = not (askZ3 (Neg (PureOr (Neg pi1, pi2)))) in
@@ -234,6 +246,7 @@ let rec sublist b e l =
 let rec t_nullable (pi :pure) (es:t_es) : bool=
   match es with
     Nil -> false
+  | ESEMP -> true 
   | Single tran -> false
   | TCons (es1 , es2) -> (t_nullable pi es1) && (t_nullable pi es2)
   | TOr (es1 , es2) -> (t_nullable pi es1) || (t_nullable pi es2)
@@ -250,14 +263,14 @@ let rec t_checkNullable (eff:t_effect):bool =
 
 let rec t_fst (pi :pure) (es:t_es): (t_trans) list = 
   match es with
-    Nil -> []      first function.....
-  | Event (str, p) ->  [(str, p)]
-  | Ttimes (es1, t) -> t_fst pi es1
-  | Cons (es1 , es2) ->  if nullable pi es1 then append (t_fst pi es1) (t_fst pi es2) else t_fst pi es1
-  | ESOr (es1, es2) -> append (t_fst pi es1) (t_fst pi es2)
-  | Underline -> [("_",None)]
-  | Kleene es1 -> t_fst pi es1
-  | Not es1 -> t_fst pi es1
+    Nil -> []     
+  |  ESEMP -> []
+  | Single trans -> [trans]
+  | TNtimes (es1, t) -> t_fst pi es1
+  | TCons (es1 , es2) ->  if t_nullable pi es1 then List.append (t_fst pi es1) (t_fst pi es2) else t_fst pi es1
+  | TOr (es1, es2) -> append (t_fst pi es1) (t_fst pi es2)
+  | TAny -> [(Trans (EV "_", CCTop,  []))]
+  | TKleene es1 -> t_fst pi es1
 ;;
 
 let rec t_checkFst (eff:t_effect) : t_trans list = 
@@ -266,6 +279,94 @@ let rec t_checkFst (eff:t_effect) : t_trans list =
   | TDisj (eff1, eff2) -> append (t_checkFst eff1) (t_checkFst eff2) 
  ;;
 
+let rec subsetOf (small : string list) (big : string list) :bool = 
+  let rec oneOf a set :bool = 
+    match set with 
+      [] -> false 
+    | y:: ys -> if String.compare a y == 0 then true else oneOf a ys
+  in 
+  match small with 
+    [] -> true 
+  | x :: xs -> if oneOf x big == false then false else subsetOf xs big
+;;
+
+let rec t_t_appendEff_ES eff es = 
+  match eff with 
+    TEff (p , es_eff) ->  TEff(p, TCons (es_eff, es))
+  | TDisj (eff1 , eff2)  ->  TDisj (t_t_appendEff_ES eff1 es, t_t_appendEff_ES eff2 es)
+  
+  (*raise ( Foo "t_appendEff_ES exception!")*)
+  ;;
+
+let t_ifShouldDisj (temp1:t_effect) (temp2:t_effect) : t_effect = 
+  match (temp1, temp2) with
+      (TEff(pure1, evs1), TEff(pure2, evs2)) -> 
+        if comparePure pure1 pure2 then  TEff (pure1, TOr (evs1, evs2))
+        else TDisj (temp1, temp2 )
+      | _ -> 
+      TDisj (temp1, temp2 )
+  ;;
+
+let rec t_appendEff_ES eff es = 
+  match eff with 
+    TEff (p , es_eff) ->  TEff(p, TCons (es_eff, es))
+  | TDisj (eff1 , eff2)  ->  TDisj (t_appendEff_ES eff1 es, t_appendEff_ES eff2 es)
+  
+  (*raise ( Foo "t_appendEff_ES exception!")*)
+  ;;
+ 
+
+let rec t_derivative (p :pure) (es:t_es) (varL: var list) (tran:t_trans): (t_effect) =
+  match es with (*es is the current*)
+    Nil -> TEff (p,  Nil)
+  | ESEMP -> TEff (p,  Nil)
+  | Single tran1 ->
+  (
+    match (tran1, tran) with 
+      (Trans (TEmp, c1, re1), Trans (TEmp, c, re)) ->  if entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+    | (Trans (EV ev1, c1, re1), Trans (EV ev, c, re)) -> if String.compare ev1 ev == 0 && entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+    | _ -> TEff (p,  Nil)
+  )
+  | TAny -> TEff (p, ESEMP)
+  | TOr (es1 , es2) -> 
+    let temp1 =  (t_derivative p es1 varL tran) in
+    let temp2 =  (t_derivative p es2 varL tran) in 
+    normalTimedEffect (t_ifShouldDisj temp1 temp2) 
+  | TNtimes (es1, t) -> 
+      let pi = PureAnd (Gt (t, Number 0), p) in
+      let efF = t_derivative pi es1 varL tran in 
+      let esT_minus1 = TNtimes (es1,  Minus (t, Number 1)) in
+      t_t_appendEff_ES efF esT_minus1
+  | TCons (es1 , es2) -> 
+      if t_nullable p es1 
+      then let efF = t_derivative p es1 varL tran in 
+          let effL =  (t_appendEff_ES efF es2) in 
+          let effR =  (t_derivative p es2 varL tran) in 
+          normalTimedEffect (t_ifShouldDisj effL effR) 
+      else let efF = t_derivative p es1 varL tran in 
+          t_t_appendEff_ES efF es2    
+          
+  | TKleene es1 -> t_t_appendEff_ES  (t_derivative p es1 varL tran) es
+;;
+
+let rec t_addEntailConstrain (eff:t_effect) (pi:pure) :t_effect = 
+  match eff with 
+    TEff (pi1, es1)  -> 
+      (match entailConstrains pi pi1 with 
+        true -> eff
+      | false -> TEff (FALSE, es1)
+      )
+  | TDisj (eff1, eff2) -> TDisj(t_addEntailConstrain eff1 pi, t_addEntailConstrain eff2 pi)
+  ;;
+
+
+
+let rec t_checkDerivative  (eff:t_effect) (ev:t_trans) (varL :var list): t_effect = 
+  match eff with 
+    TEff (pi, es) -> t_derivative pi es varL ev
+  | TDisj (eff1, eff2) -> TDisj (t_checkDerivative eff1 ev varL, t_checkDerivative eff2 ev varL)
+  ;;
+
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
 
 
@@ -273,23 +374,23 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
   let normalFormR = normalTimedEffect effR in
 
   
-  (*
+  
   let varList = getAllVarFromTimedEff normalFormL in 
-  *)
+  
   let showEntail  = string_of_TimedEntailmentEff normalFormL normalFormR in 
   let unfold eff1 eff2 del = 
     let fstL = t_checkFst eff1 in 
     let deltaNew = List.append [(eff1, eff2)] del  in
 
-    let rec chceckResultAND li acc staacc hypoacc:(bool *binary_tree list* int * hypotheses)=
+    let rec chceckResultAND li acc staacc hypoacc:(bool *binary_tree list* int * t_hypotheses)=
       (match li with 
         [] -> (true, acc, staacc, hypoacc ) 
       | ev::fs -> 
           (*print_string ("\n"^string_of_Event ev^"\n\n");
           *)
-          let deriL = checkDerivative eff1 ev varList in
-          let deriR = checkDerivative eff2 ev varList in
-          let (tree, re, states, hypo) =  containment1 deriL deriR hypoacc mode in 
+          let deriL = t_checkDerivative eff1 ev varList in
+          let deriR = t_checkDerivative eff2 ev varList in
+          let (tree, re, states, hypo) =  t_containment deriL deriR hypoacc mode in 
           if re == false then (false , tree::acc, staacc+states, [])
           else chceckResultAND fs (tree::acc) (staacc+states)  (hypo)
       )
@@ -328,8 +429,8 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
   | (TEff (piL, esL),_) -> 
     if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
 
-else
-(Node ("TESTING",[] ), true, 1, delta) 
+else unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
+(*Node ("TESTING",[] ), true, 1, delta*) 
 ;;
 
 let printReportHelper lhs rhs (mode:bool): (binary_tree * bool * int * t_hypotheses) = 

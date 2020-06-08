@@ -120,6 +120,7 @@ let rec showPure (p:pure):string =
 let rec string_of_timedES (tes:t_es):string = 
   match tes with 
     Nil -> "Tbot"
+  | ESEMP -> "emp"
   | Single tran -> string_of_transition tran 
   | TCons (tes1, tes2) -> string_of_timedES tes1 ^" . " ^ string_of_timedES tes2 
   | TOr (tes1, tes2) -> string_of_timedES tes1 ^" | " ^ string_of_timedES tes2 

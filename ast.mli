@@ -92,6 +92,7 @@ type t_trans  = Trans of (t_ev * cocon * (clock list)) | NotTrans of t_trans
 
 (*Event sequence *)
 type t_es = Nil 
+        | ESEMP
         | Single of t_trans
         | TCons of t_es * t_es
         | TOr of t_es * t_es

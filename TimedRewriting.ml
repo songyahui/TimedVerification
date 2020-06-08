@@ -154,8 +154,96 @@ let rec normalPure (pi:pure):pure =
   else connectPi (tl filte_true) (hd filte_true)
   ;;
 
-let normalTES (es:t_es) (pi:pure) :t_es = 
-  es;;
+
+let rec normalTES (es:t_es) (pi:pure) mode:t_es = 
+  match es with
+  | TCons (TCons (esIn1, esIn2), es2)-> normalTES (TCons (esIn1, TCons (esIn2, es2))) pi mode
+  | TCons (es1, es2) -> 
+      let normalES1 = normalTES es1 pi mode in
+      let normalES2 = normalTES es2 pi mode in
+      (match (normalES1, normalES2) with 
+        (ESEMP, _) -> normalES2 
+      | (_, ESEMP) -> normalES1
+      | (Nil, _) -> Nil
+
+      (*
+      | (TKleene (esIn1), TKleene (esIn2)) -> 
+          if aCompareTES esIn1 esIn2 == true then normalES2
+          else TCons (normalES1, normalES2)
+      | (TKleene (esIn1), TCons(TKleene (esIn2), es2)) -> 
+          if aCompareTES esIn1 esIn2 == true then normalES2
+          else TCons (normalES1, normalES2) 
+*)
+      | (normal_es1, normal_es2) -> 
+        if mode == 1 then 
+        (
+        match (normal_es1, normal_es2) with 
+        (*|  (TCons (esIn1, esIn2), es2)-> normalTES (TCons (esIn1, TCons (esIn2, es2))) pi *)
+        (*|  (TOr (or1, or2), es2) ->  (TOr (normalTES  (TCons (or1, es2)) pi mode,  normalTES (TCons (or2, es2)) pi mode)) *)
+        |  (es1, TOr (or1, or2)) -> normalTES (TOr ( (TCons (es1, or1)),  (TCons (es1, or2)))) pi mode
+        | _-> TCons (normal_es1, normal_es2)
+        )
+        else TCons (normal_es1, normal_es2)
+      ;)
+  | TOr (es1, es2) -> 
+      (match (normalTES es1 pi mode, normalTES es2 pi mode) with 
+        (Nil, Nil) -> Nil
+      | (Nil, norml_es2) -> norml_es2
+      | (norml_es1, Nil) -> norml_es1
+      (*
+      | (TOr(es1In, es2In), norml_es2 ) ->
+        if aCompareTES norml_es2 es1In || aCompareTES norml_es2 es2In then TOr(es1In, es2In)
+        else TOr (TOr(es1In, es2In), norml_es2 )
+      | (norml_es2, TOr(es1In, es2In) ) ->
+        if aCompareTES norml_es2 es1In || aCompareTES norml_es2 es2In then TOr(es1In, es2In)
+        else TOr (norml_es2, TOr(es1In, es2In))
+        *)
+      | (ESEMP, TKleene norml_es2) ->  TKleene norml_es2
+      | (TKleene norml_es2, ESEMP) ->  TKleene norml_es2
+
+      | (norml_es1, norml_es2) -> 
+      TOr (norml_es1, norml_es2)
+      (*
+        if aCompareTES  norml_es1 norml_es2 == true then norml_es1
+        else 
+        (match (norml_es1, norml_es2) with
+          (norml_es1, TKleene norml_es2) ->  
+          if aCompareTES norml_es1 norml_es2 == true then TKleene norml_es2
+          else TOr (norml_es1, TKleene norml_es2)
+        | (TKleene norml_es2, norml_es1) ->  
+          if aCompareTES norml_es1 norml_es2 == true then TKleene norml_es2
+          else TOr (TKleene norml_es2, norml_es1)
+        |  _-> TOr (norml_es1, norml_es2)
+        )
+    
+      ;)
+          *))
+
+          (*
+  | TNtimes (es1, terms) -> 
+
+      let t = normalTerms terms in 
+      let normalInside = normalTES es1 pi mode in 
+      (match normalInside with
+        ESEMP -> ESEMP
+      | _ -> 
+        let allPi = getAllPi pi [] in 
+        if (existPi (Eq (terms, Number 0)) allPi) then ESEMP else 
+          match t with
+            Number num -> concertive normalInside num 
+          | _ -> TNtimes (normalInside, t))
+        (*else if (existPi (Eq (terms, n)) allPi)) then ESEMP else TNtimes (normalInside, t))*)
+ *)
+  | TKleene es1 -> 
+      let normalInside = normalTES es1 pi mode in 
+      (match normalInside with
+        ESEMP -> ESEMP
+      | TKleene esIn1 ->  TKleene (normalTES esIn1 pi mode)
+      | TOr(ESEMP, aa) -> TKleene aa
+      | _ ->  TKleene normalInside)
+
+  | _-> es
+  ;;
 
 type rule = LHSOR   | RHSOR 
           | LHSEX   | RHSEX 
@@ -196,9 +284,9 @@ let rec compareTimedEff eff1 eff2 =
   | _ -> false
   ;;
 
-let rec normalTimedEffect (eff:t_effect) :t_effect =eff
+let rec normalTimedEffect (eff:t_effect) :t_effect =
 
-  (*
+  
   let noPureOr  = deletePureOrInTEff eff in 
   match noPureOr with
   | TEff (p, es) -> 
@@ -209,7 +297,7 @@ let rec normalTimedEffect (eff:t_effect) :t_effect =eff
         )
       else 
         let p_normal = normalPure p in 
-        let es_normal  = normalTES es p in
+        let es_normal  = normalTES es p 0 in
         (match es_normal with 
           TOr (es_nor1, es_nor2) -> TDisj (TEff (p_normal, es_nor1), TEff (p_normal, es_nor2))
         | _ -> TEff ( p_normal, es_normal)
@@ -231,7 +319,7 @@ let rec normalTimedEffect (eff:t_effect) :t_effect =eff
         else TDisj (norml_eff2, TDisj(eff1In, eff2In))
 
       | _ -> TDisj (normaedEff1, normaedEff2)
-      *)
+      
   ;;
 
 let rec sublist b e l = 

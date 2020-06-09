@@ -580,7 +580,82 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
     if t_checkReoccur normalFormL normalFormR delta then (Node(showEntail ^ "   [Reoccur]", []), true, 0, delta) 
     else if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
 
-else unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
+else 
+(*there is no extantial var on thr RHS already*)
+      let rec chceckSyncAND li acc staacc hypoacc:(bool *binary_tree list* int * t_hypotheses)=
+        (match li with 
+          [] -> (true, acc, staacc, hypoacc) 
+        | (lhs, rhs)::fs -> 
+            let (tree, re, states, hypo) =  t_containment lhs rhs delta true in 
+            if re == false then (false , tree::acc, staacc+states, List.append  hypoacc hypo)
+            else chceckSyncAND fs (tree::acc) (staacc+states) (List.append hypoacc hypo)
+        )
+      in 
+      match List.hd (headEs esL) with
+          Ttimes (esIn, term) -> 
+            (match term with 
+              Var s -> 
+                let synchronizedLHS = synchronizedReason normalFormL s in 
+                
+                (*print_string (List.fold_left (fun acc a  -> acc ^ showEffect a ^ "\n") ""  synchronizedLHS ^"\n"); 
+
+                print_string (string_of_int (List.length synchronizedLHS)^"\n"); 
+                *)
+                if List.length (synchronizedLHS) > 1 then 
+                  (let synchronizedRHS = synchronizedReason normalFormR s in 
+                  if List.length (synchronizedLHS) != List.length (synchronizedRHS) 
+                  then (Node (showEntail ^"   [SYNC-REASONING-FAIL]",[] ), false, 0, [])
+                  else 
+                    let syncPairs = synchronizedPairs synchronizedLHS synchronizedRHS in
+                    let (resultFinal, trees, states, hypo) = chceckSyncAND syncPairs [] 0 delta in 
+                    (Node (showEntail ^ "   [SYNC-REASONING]",trees ), resultFinal, states+1, hypo)  
+                  )  
+                else 
+                (match  entailConstrains (Eq (Var s, Number 0) ) piL  with 
+                  true -> (*[CASE SPLIT]*) 
+                    let zeroCase = PureAnd (piL, Eq (Var s, Number 0) ) in 
+                    let nonZeroCase = PureAnd (piL, Gt (Var s, Number 0) ) in 
+                    let leftZero =  (addConstrain (normalFormL) zeroCase) in
+                    let rightZero =  (addConstrain (normalFormR) zeroCase) in
+                    let leftNonZero =  (addConstrain normalFormL nonZeroCase) in
+                    let rightNonZero =  (addConstrain normalFormR nonZeroCase) in
+
+
+                    (*zhe li hao xiang ke yi gai*)
+
+                    let (tree1, re1, states1, hypo) = (t_containment leftZero rightZero delta mode) in
+                    (match re1 with 
+                      false -> (Node (showEntail ^"   [CASE SPLIT]",[tree1] ), re1, states1, [])
+                    | true -> let (tree2, re2, states2, hypo1) = (t_containment leftNonZero rightNonZero hypo mode) in
+                      (Node (showEntail ^"   [CASE SPLIT]",[tree1;tree2] ), re1&& re2, states1+states2, List.append hypo hypo1)
+                    )
+                  | false -> (*[UNFOLD]*)unfold normalFormL (addEntailConstrain normalFormR piL) delta 
+                )
+            | Plus  (Var t, num) -> 
+            (*[LHSSUB]*)
+                let newVar = getAfreeVar varList in 
+                let lhs = substituteEff normalFormL  (Plus  (Var t, num))  (Var newVar) in
+                let rhs = substituteEff normalFormR  (Plus  (Var t, num))  (Var newVar) in
+                let cons = PureAnd( Eq (Var newVar, Plus (Var t, num) ), GtEq (Var newVar, Number 0)) in
+                let lhs' = addConstrain lhs cons in 
+                let rhs' = addConstrain rhs cons in 
+                let (tree, re, states, hypo) = t_containment lhs' rhs' delta mode in
+                (Node (showEntail ^"   [SUB "^ newVar ^"/" ^ t ^"+1]",[tree] ), re, states, hypo)
+            | Minus (Var t, num) -> 
+            (*[LHSSUB]*)
+                let newVar = getAfreeVar varList in 
+                let lhs = substituteEff normalFormL  (Minus  (Var t, num)) (Var newVar) in
+                let rhs = substituteEff normalFormR  (Minus  (Var t, num)) (Var newVar) in
+                let cons = PureAnd( Eq (Var newVar, Minus (Var t, num) ), GtEq (Var newVar, Number 0))in
+                let lhs' = addConstrain lhs cons in 
+                let rhs' = addConstrain rhs cons in 
+                let (tree, re, states, hypo) = t_containment lhs' rhs' delta mode in
+                (Node (showEntail ^"   [SUB "^ newVar ^"/" ^ t ^"-1]",[tree] ), re, states, hypo)
+            | Number n -> unfold normalFormL (addEntailConstrain normalFormR piL) delta 
+            | _ -> print_endline (showEntail);
+              raise ( Foo "term is too complicated exception1!")
+            )
+          | _ -> unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
 (*Node ("TESTING",[] ), true, 1, delta*) 
 ;;
 

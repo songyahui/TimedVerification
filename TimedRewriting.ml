@@ -279,17 +279,23 @@ let rec subsetOf (small : string list) (big : string list) :bool =
   | x :: xs -> if oneOf x big == false then false else subsetOf xs big
 ;;
 
-let rec compareTimedES es1 es2 = 
-  match (es1, es2) with 
-    (Nil, Nil) -> true
-  | (ESEMP, ESEMP) -> true
-  | (Single tran1, Single tran2) ->
+let compareTransition (a, b,c) (a1, b1, c1) : bool = 
   (
-    match (tran1, tran2) with 
+    match ((a, b,c), (a1, b1, c1)) with 
       ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
     | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
     | _ -> false
   )
+
+  ;;
+
+
+let rec compareTimedES es1 es2 = 
+  match (es1, es2) with 
+    (Nil, Nil) -> true
+  | (ESEMP, ESEMP) -> true
+  | (Single tran1, Single tran2) ->compareTransition tran1 tran2
+
   | (TCons (es1L, es1R), TCons (es2L, es2R)) -> (compareTimedES es1L es2L) && (compareTimedES es1R es2R)
   | (TOr (es1L, es1R), TOr (es2L, es2R)) -> 
       let one = ((compareTimedES es1L es2L) && (compareTimedES es1R es2R)) in
@@ -400,6 +406,20 @@ let rec t_checkNullable (eff:t_effect):bool =
     TEff (pi, es) -> t_nullable pi es
   | TDisj (eff1, eff2) -> t_checkNullable eff1 || t_checkNullable eff2 
 ;;
+
+let rec t_simpleFst (es:t_es): t_trans = 
+  match es with 
+  | Single t ->  t
+  | TCons (es1 , es2) ->  t_simpleFst es1
+  | TOr (es1 , es2) ->  t_simpleFst es1
+  | TAny -> (EV "_", CCTop, [])
+  | TNot es1 -> t_simpleFst es1
+  | TKleene es1 -> t_simpleFst es1
+  | TNtimes (es1, t) ->   t_simpleFst es1
+
+  | _ -> raise (Foo (string_of_timedES es^"t_simpleFst exception"))
+  
+  ;;
 
 let rec t_fst (pi :pure) (es:t_es): (t_trans) list = 
   match es with
@@ -607,6 +627,129 @@ let rec t_substituteEff (effect:t_effect) (termOrigin:terms) (termNew:terms) =
   | TDisj (eff1, eff2) -> TDisj (t_substituteEff eff1 termOrigin termNew , t_substituteEff eff2 termOrigin termNew ) 
   ;;
 
+
+let rec t_getAllVarFromES es = 
+  match es with
+  | TNtimes (_, Var s) -> [s]
+  | TNtimes (_, Plus (Var s, _ )) -> [s]
+  | TNtimes (_, Minus (Var s, _ )) -> [s]
+  | TCons (es1, es2) -> List.append (t_getAllVarFromES es1 ) (t_getAllVarFromES es2 ) 
+  | TOr (es1, es2) -> List.append (t_getAllVarFromES es1 ) (t_getAllVarFromES es2 ) 
+  | TKleene (esIn) -> t_getAllVarFromES esIn
+  | _ -> []
+  ;;
+
+let rec t_getAllVarFromEff (eff:t_effect): string list = 
+  match eff with 
+    TEff (pi, es) -> (* append   (getAllVarFromPi pi) *) (t_getAllVarFromES es)
+  | TDisj(eff1, eff2) -> List.append (t_getAllVarFromEff eff1) (t_getAllVarFromEff eff2)
+(*match effect with 
+    TEff (pi, es) -> getAllVarFromES es
+  | Disj (eff1, eff2) -> append (t_getAllVarFromEff eff1) (t_getAllVarFromEff eff2)
+*)
+;;
+
+let rec t_headEff (eff:t_effect) : t_es list = 
+  match eff with 
+    TEff (pi, es) -> t_headEs es
+  | TDisj (eff1, eff2) -> List.append (t_headEff eff1) (t_headEff eff2)
+  ;; 
+let t_needToBeInstantiated eff varLi :bool = 
+  let headsofRHS = t_headEff eff in 
+  List.exists (fun a -> not (subsetOf (t_getAllVarFromES a) varLi)) headsofRHS 
+;;
+
+let rec t_getTheheadneedToBeInstantiated headsofRHS varList:t_es = 
+  match headsofRHS with 
+    [] -> raise (Foo "t_getTheheadneedToBeInstantiated")
+  | x :: xs -> if subsetOf (t_getAllVarFromES x) varList == false then x else t_getTheheadneedToBeInstantiated xs varList
+  ;;
+
+
+let t_needToBeInstantiated eff varLi :bool = 
+  let headsofRHS = t_headEff eff in 
+  List.exists (fun a -> not (subsetOf (t_getAllVarFromES a) varLi)) headsofRHS 
+;;
+
+let rec remove_dup lst= 
+  match lst with
+      | [] -> []
+      | h::t -> h::(remove_dup (List.filter (fun x -> x<>h) t))
+      ;;
+
+let rec t_getFirstVar (es :t_es): string option = 
+    match es with 
+      TCons (es1, es2) -> 
+        (
+        match t_getFirstVar es1 with 
+          None -> t_getFirstVar es2 
+        | Some str -> Some str
+        )
+    | TOr (es1, es2) -> 
+        (
+        match t_getFirstVar es1 with 
+          None -> t_getFirstVar es2 
+        | Some str -> Some str
+        )
+    | TNtimes (esIn, t) -> 
+        let rec getVarFromTerm term = 
+          match term with 
+            Var str -> Some str 
+          | Number n -> None 
+          | Plus (tt, n) -> getVarFromTerm tt 
+          | Minus (tt, n) -> getVarFromTerm tt 
+        in getVarFromTerm t 
+    | TKleene esIn -> t_getFirstVar esIn
+    | TNot esIn -> t_getFirstVar esIn
+    | _ -> None
+;;
+
+let rec substituteTermWithVal (t:terms) (var1:string) (val1: int):terms = 
+  match t with 
+    Var str -> if String.compare var1 str == 0 then (Number val1) else Var str 
+  | Number n -> Number n
+  | Plus (term, n) -> Plus (substituteTermWithVal term var1 val1, n)
+  | Minus (term, n) -> Minus (substituteTermWithVal term var1 val1, n)
+  ;;
+
+let rec t_substituteESWithVal (es:t_es) (var1:string) (val1: int):t_es = 
+  match es with 
+  | TCons (es1, es2) ->  TCons (t_substituteESWithVal es1 var1 val1, t_substituteESWithVal es2 var1 val1)
+  | TOr (es1, es2) ->  TOr (t_substituteESWithVal es1 var1 val1, t_substituteESWithVal es2 var1 val1)
+
+  | TNtimes (esIn, t) -> TNtimes (t_substituteESWithVal esIn var1 val1, substituteTermWithVal t var1 val1)
+  | TKleene esIn -> TKleene (t_substituteESWithVal esIn var1 val1)
+  | TNot esIn -> TNot (t_substituteESWithVal esIn var1 val1)
+  | _ -> es
+
+  ;;
+
+let t_instantiateEff (pi:pure) (es:t_es) (instances: int list): (t_effect*int) list = 
+  match t_getFirstVar es with 
+    None -> []
+  | Some (str) ->  
+    map (fun n -> 
+     (TEff (pi, t_substituteESWithVal es str n), n)) instances 
+  ;;
+
+let get_0 (a, b) = a;;
+
+let rec t_instantiateEffR  (effR:t_effect) (instances: int list): (t_effect*int) list = 
+  match effR with 
+    TEff (piR, esR) ->  t_instantiateEff piR esR instances
+  | TDisj (eff1, eff2) -> 
+    List.fold_right (fun instance acc -> 
+      let temp1 = t_instantiateEffR eff1 [instance] in 
+      let temp2 = t_instantiateEffR eff2 [instance] in 
+      match (List.length temp1, List.length temp2) with 
+        | (0, 0) ->acc
+        | (0, _) -> List.append acc [(get_0 (hd temp2), instance)]
+        | (_, 0) -> List.append acc [(get_0 (hd temp1), instance)]
+        | _ -> List.append acc [(TDisj(get_0 (hd temp1), get_0 (hd temp2)), instance)]
+       ) (instances) [] 
+
+  ;;
+
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
 
 
@@ -672,9 +815,136 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
     if t_checkReoccur normalFormL normalFormR delta then (Node(showEntail ^ "   [Reoccur]", []), true, 0, delta) 
     else if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
 
+    else if t_needToBeInstantiated normalFormR (t_getAllVarFromEff normalFormL) == true then 
+    (*if existialRHSEff piL esL normalFormRNew varList == true then*)
+      
+      let headsofRHS = t_headEff normalFormR in 
+      (*
+      print_string (showEffect normalFormR^"\n");
+      print_string (string_of_int (List.length headsofRHS)^"\n");
+      print_string (List.fold_left (fun acc a  -> acc ^ " " ^ a ^ "\n") ""  varList);
+      *)
+      let head = t_getTheheadneedToBeInstantiated headsofRHS varList in
+      match head with 
+          TNtimes (esIn, term) -> 
+          
+              (match term with
+                Var s -> 
+    (*********************************)
+    (*                
+    3. find possible values 
+    4. disjunc all the values in instanstiation
+    *)          (*
+                let maxSize = getSize esL in 
+                *)
+                let getInstansVal piL esL pattern: int list = 
+
+           
+                  let rec getEventAfterT (eff:t_effect) : t_trans = 
+                    match eff with 
+                      TEff (pi, es) -> 
+                      (
+                        match es with 
+                          TCons (es1, es2) -> t_simpleFst es2
+                        | TNtimes (esIn, term) -> (EV "_", CCTop , [])
+                        | TKleene (es1) -> getEventAfterT (TEff (TRUE, es1))
+                        | TNot (es1) -> getEventAfterT (TEff (TRUE, es1))
+
+                        | _ -> print_string (string_of_timedES es); raise (Foo "getEventAfterT")
+                      )
+                    | TDisj (eff1, eff2) -> print_string (string_of_timedEff eff); raise (Foo "getEventAfterT")
+                  in 
+                  let rec getEventindex (es:t_es) (ev) (acc:int list) (indexAcc:int list): (int list * int list) = 
+                    match es with 
+                    | ESEMP -> (acc, indexAcc)
+                    | Single (a, b, c) -> if compareTransition (a, b, c) ev  then (List.map (fun a -> a+ 1) acc, List.append acc indexAcc) else (List.map (fun a -> a+ 1) acc, indexAcc)
+                    | TAny -> (List.map (fun a -> a+ 1) acc , indexAcc)
+                    | TCons (es1, es2) -> 
+                      let (start1, indexList1) = getEventindex es1 ev acc indexAcc in
+                      if (List.length indexList1 != 0 ) then (start1, indexList1)
+                      else 
+                      getEventindex es2 ev start1 indexList1 
+                    | TOr (es1, es2) -> 
+                      let (index1, list1) = getEventindex es1 ev acc indexAcc in
+                      let (index2, list2) = getEventindex es2 ev acc indexAcc in
+                      (List.append index1 index2, List.append list1 list2)
+
+                    | TNtimes (es1, t) -> getEventindex es1 ev acc indexAcc
+                    | TKleene es1 ->  getEventindex es1 ev acc indexAcc
+                    | TNot es1 ->  getEventindex es1 ev acc indexAcc
+                    | _ -> raise (Foo "getEventindex")
+                  in 
+
+                  let eventAfterT = getEventAfterT normalFormR in 
+                  let (index, indexL) = getEventindex esL eventAfterT [0] [] in 
+                  (*
+                  let temp = List.fold_left (fun acc a -> acc ^ "," ^ string_of_int a ) "\n" (remove_dup indexL) in 
+                  print_string (eventAfterT ^":"^ temp^"\n");
+                  *)
+                  (remove_dup indexL)
+                  (*List.rev(makeList 0 index []) *)
+
+                in 
+
+
+
+                let instanceFromLeft = getInstansVal piL esL esIn in 
+                let instantiateRHS = t_instantiateEffR normalFormR instanceFromLeft in 
+                (*print_string (List.fold_left (fun acc a  -> acc ^ showEffect a ^ "\n") ""  instantiateRHS);*)
+                let rec chceckResultOR li acc staacc : (bool * binary_tree list  * int * int * t_hypotheses)=
+                  (match li with 
+                    [] -> (false , acc, staacc, -1, delta) 
+                  | (rhs, index)::rhss -> 
+                  
+                      
+                      
+                      let pure = Eq (Var s, Number index) in 
+                      let lhs = normalTimedEffect (t_addConstrain (TEff (piL, esL)) pure ) in 
+                      (*
+                      print_string (showEffect lhs ^"|=" ^showEffect rhs^"\n");
+                      print_string (string_of_int index^"\n");
+                      *)
+                      match lhs with 
+                        TEff (FALSE, _) -> 
+                        chceckResultOR rhss acc staacc
+                        
+                      | _ -> 
+                        let rhs = (t_addConstrain rhs pure) in 
+                        let (tree, re, states, hypo) = t_containment (lhs) (rhs) delta mode in 
+                        if re == true then (true , tree::acc, staacc+states, index, hypo)
+                        else chceckResultOR rhss (tree::acc) (staacc+states) 
+                  )
+                in 
+                let (resultFinal, trees, states, value, hypo ) = chceckResultOR instantiateRHS [] 0 in
+                if resultFinal then (Node(showEntail ^ "   [EXISTENTIAL "^ s ^ "="^ string_of_int value ^"]", []), resultFinal, states, delta) 
+                else 
+                (Node(showEntail ^ "   [EXISTENTIAL "^ "fail" ^"]", [] ), resultFinal, states, hypo) 
+                (*********************************)
+
+              | Plus  (Var t, num) -> 
+                let newVar = getAfreeVar varList in 
+                let rhs = t_substituteEff normalFormR  (Plus  (Var t, num))  (Var newVar) in
+                let cons = PureAnd( Eq (Var newVar, Plus (Var t, num) ), GtEq (Var newVar, Number 0)) in
+                let lhs' = t_addConstrain normalFormL cons in
+                let rhs' = t_addConstrain rhs cons in
+                let (tree, re, states, hypo) = t_containment lhs' rhs' delta mode in
+                (Node (string_of_TimedEntailmentEff lhs' rhs' ^ "   [SUB-RHS]",[tree] ), re, states, hypo)
+                
+              | Minus (Var t, num) -> 
+                let newVar = getAfreeVar varList in 
+                let rhs = t_substituteEff normalFormR  (Minus  (Var t, num)) (Var newVar) in
+                let cons = PureAnd( Eq (Var newVar, Minus (Var t, num) ), GtEq (Var newVar, Number 0))in
+
+                let lhs' = t_addConstrain normalFormL cons in
+                let rhs' = t_addConstrain rhs cons in
+                let (tree, re, states ,hypo) = t_containment lhs' rhs' delta mode in
+                (Node (string_of_TimedEntailmentEff lhs' rhs' ^ "   [SUB-RHS]",[tree] ), re, states, hypo)
+              | _ -> raise (Foo "bu ying gai a ");
+              )
+        | _ -> raise (Foo "bu ying gai a ");
+
+
 else 
-
-
 (*there is no extantial var on thr RHS already*)
       let rec chceckSyncAND li acc staacc hypoacc:(bool *binary_tree list* int * t_hypotheses)=
         (match li with 
@@ -762,9 +1032,9 @@ let printReportHelper lhs rhs (mode:bool): (binary_tree * bool * int * t_hypothe
 
 
 let printReport lhs rhs (mode:bool):string =
-  let startTimeStamp = Sys.time() in
+  let starTNtimestamp = Sys.time() in
   let (tree, re, states, hypo) =  printReportHelper lhs rhs mode in
-  let verification_time = "[Verification Time: " ^ string_of_float (Sys.time() -. startTimeStamp) ^ " s]\n" in
+  let verification_time = "[Verification Time: " ^ string_of_float (Sys.time() -. starTNtimestamp) ^ " s]\n" in
   let result = printTree ~line_prefix:"* " ~get_name ~get_children tree in
   let states = "[Explored "^ string_of_int (states) ^ " States]\n" in 
   let buffur = ( "===================================="^"\n" ^(string_of_TimedEntailmentEff lhs rhs)^"\n[Result] " ^(if re then "Succeed\n" else "Fail\n") ^ states ^verification_time^" \n\n"^ result)
@@ -783,10 +1053,10 @@ print_string (inputfile ^ "\n" ^ outputfile^"\n");*)
 
       let prove_re = List.fold_right (fun (lhs, rhs) acc -> acc ^ (printReport lhs rhs false)) raw_prog ""  in
       (*let oc = open_out outputfile in    (* 新建或修改文件,返回通道 *)
-      (*      let startTimeStamp = Sys.time() in*)
+      (*      let starTNtimestamp = Sys.time() in*)
       (*fprintf oc "%s\n" verification_re;   (* 写一些东西 *)*)
       print_string (verification_re ^"\n");
-      (*print_string (string_of_float(Sys.time() -. startTimeStamp)^"\n" );*)
+      (*print_string (string_of_float(Sys.time() -. starTNtimestamp)^"\n" );*)
       close_out oc;                (* 写入并关闭通道 *)
       *)
       print_string (prove_re ^"\n");

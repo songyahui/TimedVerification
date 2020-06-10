@@ -80,16 +80,15 @@ let rec string_of_cocons (con:cocon) : string =
   | CCAND (co1, co2) -> string_of_cocons  co1 ^ " /\\ " ^ string_of_cocons co2
 
 
-let rec string_of_transition (ev:t_trans)  : string = 
-  match ev with 
-    Trans (a, b, c) -> 
+let rec string_of_transition ((a, b, c):t_trans)  : string = 
+
       let temp  = List.fold_left (fun acc a -> acc ^ " "^ a) "" c in 
       let aa = (match a with 
                 EV str -> str
               | TEmp -> "emp"
       ) in 
       "[" ^ aa ^", " ^ string_of_cocons b ^", "^ "(" ^temp ^")" ^"]"
-  | NotTrans ev1 -> "!"^ string_of_transition ev1
+ 
   ;;
 
 (*To pretty print terms*)
@@ -127,6 +126,7 @@ let rec string_of_timedES (tes:t_es):string =
   | TNtimes (tesIn, t) -> "("^(string_of_timedES tesIn) ^ "^" ^ (showTerms t)^")"
   | TKleene esIn -> "(" ^ (string_of_timedES esIn) ^ "^" ^ "*"^")"
   | TAny -> "_"
+  | TNot esIn -> "!"^ string_of_timedES esIn
   ;;
 
 let rec string_of_timedEff (effL :t_effect): string = 

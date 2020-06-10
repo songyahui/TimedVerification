@@ -281,8 +281,8 @@ let rec compareTimedES es1 es2 =
   | (Single tran1, Single tran2) ->
   (
     match (tran1, tran2) with 
-      (Trans (TEmp, c1, re1), Trans (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
-    | (Trans (EV ev1, c1, re1), Trans (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
+      ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
+    | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
     | _ -> false
   )
   | (TCons (es1L, es1R), TCons (es2L, es2R)) -> (compareTimedES es1L es2L) && (compareTimedES es1R es2R)
@@ -386,7 +386,8 @@ let rec t_nullable (pi :pure) (es:t_es) : bool=
   | TOr (es1 , es2) -> (t_nullable pi es1) || (t_nullable pi es2)
   | TNtimes (es1, t) -> askZ3 (PureAnd (pi, Eq (t, Number 0))) 
   | TKleene es1 -> true
-  | TAny -> false 
+  | TAny -> false
+  |  TNot es1 -> not (t_nullable pi es1)
   ;;
 
 let rec t_checkNullable (eff:t_effect):bool = 
@@ -398,13 +399,14 @@ let rec t_checkNullable (eff:t_effect):bool =
 let rec t_fst (pi :pure) (es:t_es): (t_trans) list = 
   match es with
     Nil -> []     
-  |  ESEMP -> []
+  | ESEMP -> []
   | Single trans -> [trans]
   | TNtimes (es1, t) -> t_fst pi es1
   | TCons (es1 , es2) ->  if t_nullable pi es1 then List.append (t_fst pi es1) (t_fst pi es2) else t_fst pi es1
   | TOr (es1, es2) -> append (t_fst pi es1) (t_fst pi es2)
-  | TAny -> [(Trans (EV "_", CCTop,  []))]
+  | TAny -> [( (EV "_", CCTop,  []))]
   | TKleene es1 -> t_fst pi es1
+  | TNot es1 -> t_fst pi es1
 ;;
 
 let rec t_checkFst (eff:t_effect) : t_trans list = 
@@ -448,8 +450,8 @@ let rec t_derivative (p :pure) (es:t_es) (varL: var list) (tran:t_trans): (t_eff
   | Single tran1 ->
   (
     match (tran1, tran) with 
-      (Trans (TEmp, c1, re1), Trans (TEmp, c, re)) ->  if entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
-    | (Trans (EV ev1, c1, re1), Trans (EV ev, c, re)) -> if String.compare ev1 ev == 0 && entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+      ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+    | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
     | _ -> TEff (p,  Nil)
   )
   | TAny -> TEff (p, ESEMP)
@@ -472,7 +474,20 @@ let rec t_derivative (p :pure) (es:t_es) (varL: var list) (tran:t_trans): (t_eff
           t_t_appendEff_ES efF es2    
           
   | TKleene es1 -> t_t_appendEff_ES  (t_derivative p es1 varL tran) es
-;;
+  | TNot es1 -> 
+    let der = t_derivative p es1 varL tran in 
+    let tryder = normalTimedEffect der in 
+    match  tryder with
+      TEff (ppp,Nil) ->   TEff (p, TKleene (TAny))
+    | TEff (ppp,ESEMP) ->  TEff (ppp,Nil)
+    | _ -> 
+      (let rec helper (noteffect:t_effect) : t_effect = 
+        match noteffect with 
+          TEff (pi, esnot) ->  TEff (pi, TNot esnot)
+        | TDisj (eff11, eff22) -> TDisj (helper eff11, helper eff22)
+      in 
+      helper tryder)
+  ;;
 
 let rec t_addEntailConstrain (eff:t_effect) (pi:pure) :t_effect = 
   match eff with 
@@ -581,6 +596,8 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
     else if (t_checkNullable normalFormL) == true && (t_checkNullable normalFormR) == false then (Node(showEntail ^ "   [REFUTATION] "  , []), false, 0, []) 
 
 else 
+
+(*
 (*there is no extantial var on thr RHS already*)
       let rec chceckSyncAND li acc staacc hypoacc:(bool *binary_tree list* int * t_hypotheses)=
         (match li with 
@@ -655,7 +672,7 @@ else
             | _ -> print_endline (showEntail);
               raise ( Foo "term is too complicated exception1!")
             )
-          | _ -> unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
+          | _ -> *)unfold normalFormL (t_addEntailConstrain normalFormR (piL)) delta 
 (*Node ("TESTING",[] ), true, 1, delta*) 
 ;;
 

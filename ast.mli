@@ -88,8 +88,7 @@ type cocon = CCTop
 
 type t_ev = EV of event | TEmp
 
-type t_trans  = Trans of (t_ev * cocon * (clock list)) | NotTrans of t_trans
-
+type t_trans  = (t_ev * cocon * (clock list))
 (*Event sequence *)
 type t_es = Nil 
         | ESEMP
@@ -98,6 +97,7 @@ type t_es = Nil
         | TOr of t_es * t_es
         | TNtimes of t_es * terms
         | TKleene of t_es
+        | TNot of t_es
         | TAny
 
 type t_effect = TEff of pure * t_es | TDisj of t_effect * t_effect

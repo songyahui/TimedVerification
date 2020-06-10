@@ -187,9 +187,9 @@ cocon:
 
 
 transition: 
-| LBrackets EMPTY COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets { Trans (TEmp, cc , re)}
-| LBrackets ev= EVENT COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets { Trans (EV ev, cc , re)}
-| NEGATION t = transition {NotTrans t } 
+| LBrackets EMPTY COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets {  (TEmp, cc , re)}
+| LBrackets ev= EVENT COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets {  (EV ev, cc , re)}
+
 
 t_es:
 | tran = transition { Single tran }

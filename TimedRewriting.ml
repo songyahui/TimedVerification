@@ -279,9 +279,9 @@ let rec subsetOf (small : string list) (big : string list) :bool =
   | x :: xs -> if oneOf x big == false then false else subsetOf xs big
 ;;
 
-let compareTransition (a, b,c) (a1, b1, c1) : bool = 
+let compareTransition tran1 tran2 : bool = 
   (
-    match ((a, b,c), (a1, b1, c1)) with 
+    match (tran1, tran2) with 
       ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
     | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
     | _ -> false
@@ -294,7 +294,12 @@ let rec compareTimedES es1 es2 =
   match (es1, es2) with 
     (Nil, Nil) -> true
   | (ESEMP, ESEMP) -> true
-  | (Single tran1, Single tran2) ->compareTransition tran1 tran2
+  | (Single tran1, Single tran2) ->  (
+    match ((tran1), (tran2)) with 
+      ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re  then true else false
+    | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && comparePure (coconToPure c1) (coconToPure c) && subsetOf re re1 && subsetOf re1 re then true else false
+    | _ -> false
+  )
 
   | (TCons (es1L, es1R), TCons (es2L, es2R)) -> (compareTimedES es1L es2L) && (compareTimedES es1R es2R)
   | (TOr (es1L, es1R), TOr (es2L, es2R)) -> 
@@ -750,6 +755,29 @@ let rec t_instantiateEffR  (effR:t_effect) (instances: int list): (t_effect*int)
 
   ;;
 
+let rec t_getSize (es:t_es) : int=
+  match es with
+    Nil -> 0 
+  | ESEMP -> 1
+  | Single _ -> 1 
+  | TCons (es1 , es2) ->  (t_getSize es1) + (t_getSize es2)
+  | TOr (es1 , es2) ->  max (t_getSize es1)  (t_getSize es2)
+  | TNtimes (es1, t) ->  
+    (match t with 
+      Number n -> (t_getSize es1) * n
+    | _ -> (t_getSize es1)
+    )
+  | TAny -> 1
+  | TKleene es1 -> (t_getSize es1)
+  | TNot es1 -> (t_getSize es1)
+
+;;
+
+let rec makeList min max acc: int list = 
+  if min  < max then makeList (min +1) max (append acc [min])
+  else append acc [max]
+;;
+
 let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode:bool) : (binary_tree * bool * int * t_hypotheses) = 
 
 
@@ -834,12 +862,13 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
     (*                
     3. find possible values 
     4. disjunc all the values in instanstiation
-    *)          (*
-                let maxSize = getSize esL in 
-                *)
+    *)          
+                let maxSize = t_getSize esL in 
+                
                 let getInstansVal piL esL pattern: int list = 
-
-           
+                  (*print_string (string_of_timedES pattern^"\n");*)
+                   
+                  (*         
                   let rec getEventAfterT (eff:t_effect) : t_trans = 
                     match eff with 
                       TEff (pi, es) -> 
@@ -855,9 +884,13 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
                     | TDisj (eff1, eff2) -> print_string (string_of_timedEff eff); raise (Foo "getEventAfterT")
                   in 
                   let rec getEventindex (es:t_es) (ev) (acc:int list) (indexAcc:int list): (int list * int list) = 
+                    (*print_string (string_of_transition ev^"\n");*)
+                    let ev = (EV "A", CCLT ("a", 1), ["a"; "b"]) in 
                     match es with 
                     | ESEMP -> (acc, indexAcc)
-                    | Single (a, b, c) -> if compareTransition (a, b, c) ev  then (List.map (fun a -> a+ 1) acc, List.append acc indexAcc) else (List.map (fun a -> a+ 1) acc, indexAcc)
+                    | Single (a, b, c) -> 
+                    print_string ("ygjgjhsd");
+                    if compareTransition (a, b, c) ev  then (List.map (fun a -> a+ 1) acc, List.append acc indexAcc) else (List.map (fun a -> a+ 1) acc, indexAcc)
                     | TAny -> (List.map (fun a -> a+ 1) acc , indexAcc)
                     | TCons (es1, es2) -> 
                       let (start1, indexList1) = getEventindex es1 ev acc indexAcc in
@@ -873,16 +906,16 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
                     | TKleene es1 ->  getEventindex es1 ev acc indexAcc
                     | TNot es1 ->  getEventindex es1 ev acc indexAcc
                     | _ -> raise (Foo "getEventindex")
-                  in 
 
                   let eventAfterT = getEventAfterT normalFormR in 
+                  (*print_string (string_of_transition eventAfterT^"\n");*)
                   let (index, indexL) = getEventindex esL eventAfterT [0] [] in 
                   (*
                   let temp = List.fold_left (fun acc a -> acc ^ "," ^ string_of_int a ) "\n" (remove_dup indexL) in 
                   print_string (eventAfterT ^":"^ temp^"\n");
                   *)
-                  (remove_dup indexL)
-                  (*List.rev(makeList 0 index []) *)
+                  (remove_dup indexL)*)
+                  List.rev(makeList 0 maxSize []) 
 
                 in 
 
@@ -890,7 +923,7 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
 
                 let instanceFromLeft = getInstansVal piL esL esIn in 
                 let instantiateRHS = t_instantiateEffR normalFormR instanceFromLeft in 
-                (*print_string (List.fold_left (fun acc a  -> acc ^ showEffect a ^ "\n") ""  instantiateRHS);*)
+                (*print_string (List.fold_left (fun acc (a, n)  -> acc ^ string_of_timedEff a ^ "\n") ""  instantiateRHS);*)
                 let rec chceckResultOR li acc staacc : (bool * binary_tree list  * int * int * t_hypotheses)=
                   (match li with 
                     [] -> (false , acc, staacc, -1, delta) 
@@ -918,7 +951,7 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
                 let (resultFinal, trees, states, value, hypo ) = chceckResultOR instantiateRHS [] 0 in
                 if resultFinal then (Node(showEntail ^ "   [EXISTENTIAL "^ s ^ "="^ string_of_int value ^"]", []), resultFinal, states, delta) 
                 else 
-                (Node(showEntail ^ "   [EXISTENTIAL "^ "fail" ^"]", [] ), resultFinal, states, hypo) 
+                (Node(showEntail ^ "   [EXISTENTIAL "^ "fail" ^"]", trees ), resultFinal, states, hypo) 
                 (*********************************)
 
               | Plus  (Var t, num) -> 

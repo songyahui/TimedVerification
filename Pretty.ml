@@ -29,6 +29,16 @@ let rec getAfreeVar (varList:string list):string  =
   findOne freeVar
 ;;
 
+let rec normalTerms (t:terms):terms  = 
+  match t with 
+    Minus (Minus(s, Number n1), Number n2) ->  Minus(s, Number (n1 + n2))
+  | Minus (Number n1, Number n2) ->  Number (n1- n2) 
+  | Plus (Number n1, Number n2) -> Number (n1 + n2)
+  | _ -> t 
+  ;;
+
+
+
 let rec iter f = function
   | [] -> ()
   | [x] ->

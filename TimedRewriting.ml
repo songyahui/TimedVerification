@@ -102,6 +102,11 @@ let rec comparePure (pi1:pure) (pi2:pure):bool =
   | _ -> false
   ;;
 
+let rec t_concertive (es:t_es) (t:int): t_es = 
+  if t ==0 then ESEMP 
+  else TCons (es, t_concertive es (t -1))
+  ;;
+
 let rec getAllPi piIn acc= 
     (match piIn with 
       PureAnd (pi1, pi2) -> List.append (getAllPi pi1 acc ) (getAllPi pi2 acc )
@@ -219,7 +224,7 @@ let rec normalTES (es:t_es) (pi:pure) mode:t_es =
       ;)
           *))
 
-          (*
+          
   | TNtimes (es1, terms) -> 
 
       let t = normalTerms terms in 
@@ -230,10 +235,10 @@ let rec normalTES (es:t_es) (pi:pure) mode:t_es =
         let allPi = getAllPi pi [] in 
         if (existPi (Eq (terms, Number 0)) allPi) then ESEMP else 
           match t with
-            Number num -> concertive normalInside num 
+            Number num -> t_concertive normalInside num 
           | _ -> TNtimes (normalInside, t))
         (*else if (existPi (Eq (terms, n)) allPi)) then ESEMP else TNtimes (normalInside, t))*)
- *)
+ 
   | TKleene es1 -> 
       let normalInside = normalTES es1 pi mode in 
       (match normalInside with
@@ -613,6 +618,8 @@ let rec t_containment (effL:t_effect) (effR:t_effect) (delta:t_hypotheses) (mode
   let varList = getAllVarFromTimedEff normalFormL in 
   
   let showEntail  = string_of_TimedEntailmentEff normalFormL normalFormR in 
+  (*print_string("\n================\n"^showEntail ^"\n" ^ "length of delta " ^ string_of_int (List.length delta));
+*)
   let unfold eff1 eff2 del = 
     let fstL = t_checkFst eff1 in 
     let deltaNew = List.append [(eff1, eff2)] del  in

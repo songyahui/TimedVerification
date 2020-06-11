@@ -74,7 +74,7 @@ let rec printExpr (expr: expression):string =
 
 let rec printSpec (s:spec ) :string = 
   match s with 
-  PrePost (e1, e2) -> "\n[Pre: " ^ string_of_timedEff e1 ^ "]\n[Post:"^ string_of_timedEff e2 ^"]\n"
+ (e1, e2) -> "\n[Pre: " ^ string_of_timedEff e1 ^ "]\n[Post:"^ string_of_timedEff e2 ^"]\n"
 
 
 
@@ -115,8 +115,8 @@ let rec searMeth (prog: program) (name:string) : meth option=
   | x::xs -> 
     (match x with 
       Include str -> searMeth xs name
-    | Method (Meth (t, mn , list_parm, PrePost (pre, post), expression)) -> 
-      if mn = name then Some (Meth (t, mn , list_parm, PrePost (pre, post), expression))
+    | Method ( t, mn , list_parm,  (pre, post), expression) -> 
+      if mn = name then Some ( t, mn , list_parm,  (pre, post), expression)
       else searMeth xs name 
     | Predicate _ -> searMeth xs name
     )
@@ -245,7 +245,7 @@ let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t
       (
 
         match me with 
-          Meth (t, mn , list_parm, PrePost (pre, post), expression) -> 
+         (t, mn , list_parm, (pre, post), expression) -> 
           
             
             let subPre = substituteEffWithAgrs pre exprList list_parm in 
@@ -288,7 +288,7 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
   match dec with 
     Include str -> ""
   | Predicate _ -> ""
-  | Method (Meth (t, mn , list_parm, PrePost (pre, post), expression)) -> 
+  | Method  (t, mn , list_parm, (pre, post), expression) -> 
     let head = "[Verification for method: "^mn^"]\n"in 
     let precon = "[Precondition: "^(string_of_timedEff ( pre)) ^ "]\n" in
     let postcon = "[Postcondition: "^ (string_of_timedEff ( post)) ^ "]\n" in 
@@ -310,8 +310,8 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
 
 let rec printMeth (me:meth) :string = 
   match me with 
-    Meth (t, mn , list_parm, PrePost (pre, post), expression) -> 
-    let p = printType t ^ mn^ "(" ^ printParam list_parm ^ ") "^ printSpec (PrePost (pre, post))^"{"^ printExpr expression ^"}\n" in
+   (t, mn , list_parm, (pre, post), expression) -> 
+    let p = printType t ^ mn^ "(" ^ printParam list_parm ^ ") "^ printSpec ( (pre, post))^"{"^ printExpr expression ^"}\n" in
     p 
     ;;
 

@@ -91,7 +91,7 @@ expres:
 | e1 = expres_help PLUS e2 = expres_help {BinOp(e1, e2,"+" )}
 | e1 = expres_help MINUS e2 = expres_help {BinOp(e1, e2,"-" )}
 
-meth : t = type_   name = VAR   LPAR p = param RPAR s = spec LBRACK e = expres RBRACK {Method (Meth (t , name, p, s, e))}
+meth : t = type_   name = VAR   LPAR p = param RPAR s = spec LBRACK e = expres RBRACK {Method  (t , name, p, s, e)}
 head : SHARP INCLUDE str= STRING {Include str} 
 pred : LSPEC nm = VAR LPAR  re = existVar RPAR EQ eff= t_effect RSPEC {Predicate (nm, re, eff)}
 
@@ -104,7 +104,7 @@ prog:
 | hd =head  p = prog_rest {append [hd] p}
 | pd =pred  p = prog_rest {append [pd] p}
 
-spec: LSPEC REQUIRE e1 = t_effect  ENSURE e2 = t_effect RSPEC {PrePost(e1, e2)}
+spec: LSPEC REQUIRE e1 = t_effect  ENSURE e2 = t_effect RSPEC {(e1, e2)}
 
 term:
 | str = VAR { Var str }

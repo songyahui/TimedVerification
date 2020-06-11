@@ -12,7 +12,9 @@ ocamlc -c Askz3.cmo Pretty.ml
 
 ocamlc -c -o TimedRewriting.cmo  BackEnd/TimedRewriting.ml
 
-ocamlc -o sleek parser.cmo lexer.cmo Pretty.cmo Askz3.cmo TimedRewriting.cmo
+ocamlc -c -o BackEnd.cmo  BackEnd/BackEnd.ml
+
+ocamlc -o sleek parser.cmo lexer.cmo Pretty.cmo Askz3.cmo TimedRewriting.cmo BackEnd.cmo
 
 
 ocamlc -c -o Forward.cmo  FrontEnd/Forward.ml

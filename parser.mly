@@ -9,7 +9,7 @@
 %token <bool> FALSEE
 %token EMPTY ASSERTKEY EVENTKEY CHOICE LPAR RPAR CONCAT OMEGA POWER PLUS MINUS TRUE FALSE DISJ CONJ   ENTIL INTT BOOLT VOIDT 
 %token LBRACK RBRACK COMMA SIMI  IF ELSE REQUIRE ENSURE LSPEC RSPEC RETURN LBrackets  RBrackets
-%token EOF GT LT EQ GTEQ LTEQ INCLUDE SHARP EQEQ UNDERLINE KLEENE NEGATION
+%token EOF GT LT EQ GTEQ LTEQ INCLUDE SHARP EQEQ UNDERLINE KLEENE NEGATION DEADLINE RESET TASSERTKEY
 
 (*%token FUTURE GLOBAL IMPLY LTLNOT NEXT UNTIL LILAND LILOR*)
 
@@ -71,6 +71,10 @@ expres_help :
 | v = VAR EQ e = expres_help{Assign (v, e)}
 | EVENTKEY LPAR ev = STRING p=parm RPAR {EventRaise (ev,p)}
 | ASSERTKEY LPAR eff = effect RPAR {Assertion eff}
+| TASSERTKEY LPAR eff = t_effect RPAR {TAssertion eff}
+
+| DEADLINE LPAR c = cocon RPAR {Deadline c}
+| RESET LPAR re = existVar RPAR {Reset re}
 
 cond:
 | e1 = expres_help  EQEQ e2 = expres_help {Cond (e1, e2 ,"==")}
@@ -192,6 +196,7 @@ transition:
 
 
 t_es:
+| EMPTY { ESEMP }
 | tran = transition { Single tran }
 | UNDERLINE {TAny}
 | a = t_es CONCAT b = t_es { TCons(a, b) } 

@@ -2,3 +2,5 @@
 
 
 (TRUE /\ ([ A, a<1, { a, b} ] ^n) ) |- (TRUE /\  ([ A, a<1, { a, b} ] ^n));
+
+(TRUE /\ emp) |- (TRUE /\ emp) ;

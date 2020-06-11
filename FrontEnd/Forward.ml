@@ -216,6 +216,8 @@ let condToPure (expr :expression) :pure =
 let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t_effect) (prog: program): t_effect = 
   match expr with 
     EventRaise (ev,p) -> concatEffEs state_C (Single (EV ev, CCTop,  []))
+  | Deadline cocon  -> concatEffEs state_C (Single (TEmp, cocon,  []))
+  | Reset c ->  concatEffEs state_C (Single (TEmp, CCTop,  c))
   | Seq (e1, e2) -> 
     let state_C' = verifier caller e1 state_H state_C prog in 
     verifier caller e2 state_H state_C' prog

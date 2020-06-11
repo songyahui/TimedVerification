@@ -17,6 +17,6 @@ ocamlc -o sleek parser.cmo lexer.cmo Pretty.cmo Askz3.cmo TimedRewriting.cmo
 
 ocamlc -c -o Forward.cmo  FrontEnd/Forward.ml
 
-ocamlc -o hip parser.cmo lexer.cmo Pretty.cmo Askz3.cmo Forward.cmo
+ocamlc -o hip parser.cmo  lexer.cmo Pretty.cmo Askz3.cmo TimedRewriting.cmo Forward.cmo
 
 

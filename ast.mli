@@ -45,34 +45,9 @@ type entilment = EE of effect * effect
 
 type hypotheses = (effect * effect) list
 
-type spec = PrePost of effect * effect
 
 type _type = INT | FLOAT | BOOL | VOID
 
-type expression = Unit 
-          | Return
-          | Integer of int
-          | Bool of bool
-          | Float of float
-          | String of string
-          | Variable of var
-          | LocalDel of _type * var * expression 
-          | Call of mn * expression list 
-          | Assign of var * expression
-          | Seq of expression * expression
-          | EventRaise of (event*int option)
-          | IfElse of expression * expression * expression
-          | Cond of expression * expression * string
-          | BinOp of expression * expression * string
-          | Assertion of effect
-
-type param  = (_type * var) list
-
-type meth = Meth of _type * mn * param * spec * expression
-
-type declare = Include of string | Method of meth
-
-type program = declare list
 
 (**********************************************)
 
@@ -106,3 +81,34 @@ type t_effect = TEff of pure * t_es | TDisj of t_effect * t_effect
 type t_entilment =  (t_effect * t_effect)
 
 type t_hypotheses = (t_effect * t_effect) list
+
+type expression = Unit 
+          | Return
+          | Integer of int
+          | Bool of bool
+          | Float of float
+          | String of string
+          | Variable of var
+          | LocalDel of _type * var * expression 
+          | Call of mn * expression list 
+          | Assign of var * expression
+          | Seq of expression * expression
+          | EventRaise of (event*int option)
+          | IfElse of expression * expression * expression
+          | Cond of expression * expression * string
+          | BinOp of expression * expression * string
+          | Assertion of effect
+          | TAssertion of t_effect
+          | Deadline of cocon 
+          | Reset of (clock list)
+
+type spec = PrePost of t_effect * t_effect
+
+
+type param  = (_type * var) list
+
+type meth = Meth of _type * mn * param * spec * expression
+
+type declare = Include of string | Method of meth
+
+type program = declare list

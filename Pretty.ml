@@ -167,6 +167,51 @@ let string_of_TimedEntailmentEff lhs rhs :string =
   string_of_timedEff lhs ^ " |- " ^ string_of_timedEff rhs 
   ;;
 
+let rec substituteTermWithAgr (t:terms) (realArg:expression) (formalArg: var):terms = 
+  match t with 
+    Var str -> if String.compare formalArg str == 0 then 
+    (
+      match realArg with 
+        Integer n -> Number n
+      | Variable v -> Var v
+      | Bool true -> Number 1
+      | Bool false -> Number 0
+      | BinOp (Variable v, Integer n, "+") -> Plus (Var v, Number n)
+      | BinOp (Variable v, Integer n, "-") -> Minus (Var v, Number n)
+      | _ -> raise (Foo "substituteTermWithAgr exception")
+    )
+    else Var str 
+  | Number n -> Number n
+  | Plus (term, n) -> Plus (substituteTermWithAgr term realArg formalArg, n)
+  | Minus (term, n) -> Minus (substituteTermWithAgr term realArg formalArg, n)
+  ;;
+
+let rec t_substituteESWithAgr (es:t_es) (realArg:expression) (formalArg: var):t_es = 
+  match es with 
+  | TCons (es1, es2) ->  TCons (t_substituteESWithAgr es1 realArg formalArg, t_substituteESWithAgr es2 realArg formalArg)
+  | TOr (es1, es2) ->  TOr (t_substituteESWithAgr es1 realArg formalArg, t_substituteESWithAgr es2 realArg formalArg)
+  | TNtimes (esIn, t) -> TNtimes (t_substituteESWithAgr esIn realArg formalArg, substituteTermWithAgr t realArg formalArg)
+  | TKleene esIn -> TKleene (t_substituteESWithAgr esIn realArg formalArg)
+  | TNot esIn -> TNot (t_substituteESWithAgr esIn realArg formalArg)
+  | _ -> es
+
+  ;;
+
+let rec t_reverseEs (es:t_es) : t_es = 
+  match es with 
+  | TCons (es1, es2) -> TCons (t_reverseEs es2, t_reverseEs es1)
+  | TOr (es1, es2) -> TOr (t_reverseEs es1, t_reverseEs es2)
+  | TNtimes (es1, t) -> TNtimes (t_reverseEs es1, t)
+  | TKleene es1 ->  TKleene (t_reverseEs es1)
+  | TNot es1 ->  TKleene (t_reverseEs es1)
+  | _ -> es
+  ;;
+
+let rec t_reverseEff (eff:t_effect) : t_effect =
+  match eff with 
+    TEff (p,es) ->  TEff (p, t_reverseEs es)
+  | TDisj (eff1, eff2) -> TDisj ((t_reverseEff eff1), (t_reverseEff eff2)) 
+  ;;
 (*
 let compareEv ev1 ev2 : bool =
   match (ev1, ev2) with 

@@ -99,7 +99,7 @@ prog:
 | me =  meth p = prog_rest {append [me] p}
 | hd =head  p = prog_rest {append [hd] p}
 
-spec: LSPEC REQUIRE e1 = effect  ENSURE e2 = effect RSPEC {PrePost(e1, e2)}
+spec: LSPEC REQUIRE e1 = t_effect  ENSURE e2 = t_effect RSPEC {PrePost(e1, e2)}
 
 term:
 | str = VAR { Var str }

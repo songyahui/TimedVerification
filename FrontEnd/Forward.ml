@@ -63,13 +63,18 @@ let rec printExpr (expr: expression):string =
   | IfElse (e1, e2, e3) -> "if " ^ printExpr e1 ^ " then " ^ printExpr e2 ^ " else " ^ printExpr e3 
   | Cond (e1, e2, str) -> printExpr e1 ^ str ^ printExpr e2 
   | BinOp (e1, e2, str) -> printExpr e1 ^ str ^ printExpr e2 
-  | Assertion eff -> "Assert: " ^ showEffect eff 
+  | Assertion eff -> "Assert: " ^ "string_of_timedEff eff "
+
+  | TAssertion tEff -> "Timed Assert: " ^ string_of_timedEff tEff
+  | Deadline constrains -> "Deadline: " ^ string_of_cocons constrains
+  | Reset c ->  "Reset: " ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c 
+
   ;;
 
 
 let rec printSpec (s:spec ) :string = 
   match s with 
-  PrePost (e1, e2) -> "\n[Pre: " ^ showEffect e1 ^ "]\n[Post:"^ showEffect e2 ^"]\n"
+  PrePost (e1, e2) -> "\n[Pre: " ^ string_of_timedEff e1 ^ "]\n[Post:"^ string_of_timedEff e2 ^"]\n"
 
 
 
@@ -80,24 +85,24 @@ let rec input_lines file =
   | _ -> failwith "Weird input_line return value"
 
 
-let rec concatEffEs (eff:effect) (es:es) : effect = 
+let rec concatEffEs (eff:t_effect) (es:t_es) : t_effect = 
   match eff with 
-    Effect (p,e) -> Effect (p, Cons (e, es))
-  | Disj (eff1, eff2) -> Disj ((concatEffEs eff1 es), (concatEffEs eff2 es))
+    TEff (p,e) -> TEff (p, TCons (e, es))
+  | TDisj (eff1, eff2) -> TDisj ((concatEffEs eff1 es), (concatEffEs eff2 es))
   ;; 
  
 
-let rec concatEffEff (eff1:effect) (eff2:effect) : effect = 
+let rec concatEffEff (eff1:t_effect) (eff2:t_effect) : t_effect = 
   match eff1 with 
-    Effect (p1,e1) -> 
+    TEff (p1,e1) -> 
       (match eff2 with
-        Effect (p2,e2) -> Effect (PureAnd(p1,p2) , Cons(e1, e2))
-      | Disj (ef1, ef2) -> Disj ((concatEffEff eff1 ef1), (concatEffEff eff1 ef2))
+        TEff (p2,e2) -> TEff (PureAnd(p1,p2) , TCons(e1, e2))
+      | TDisj (ef1, ef2) -> TDisj ((concatEffEff eff1 ef1), (concatEffEff eff1 ef2))
       )
-  | Disj (ef1, ef2) -> 
+  | TDisj (ef1, ef2) -> 
       (match eff2 with
-        Effect (p2,e2) -> Disj ((concatEffEff ef1 eff2), (concatEffEff ef2 eff2))
-      | Disj (_, _ ) -> Disj ((concatEffEff ef1 eff2), (concatEffEff ef2 eff2))
+        TEff (p2,e2) -> TDisj ((concatEffEff ef1 eff2), (concatEffEff ef2 eff2))
+      | TDisj (_, _ ) -> TDisj ((concatEffEff ef1 eff2), (concatEffEff ef2 eff2))
       
       )
 
@@ -118,7 +123,6 @@ let rec searMeth (prog: program) (name:string) : meth option=
 
 
 
-
 let rec substitutePureWithAgr (pi:pure) (realArg:expression) (formalArg: var):pure = 
   match pi with 
     TRUE -> pi 
@@ -136,13 +140,13 @@ let rec substitutePureWithAgr (pi:pure) (realArg:expression) (formalArg: var):pu
 
 
 
-let rec substituteEffWithAgr (eff:effect) (realArg:expression) (formalArg: var):effect = 
+let rec substituteEffWithAgr (eff:t_effect) (realArg:expression) (formalArg: var):t_effect = 
   match eff with 
-    Effect (pi, es) -> Effect (substitutePureWithAgr pi realArg formalArg, substituteESWithAgr es realArg formalArg)
-  | Disj (eff1, eff2) -> Disj (substituteEffWithAgr eff1 realArg formalArg, substituteEffWithAgr eff2 realArg formalArg)
+    TEff (pi, es) -> TEff (substitutePureWithAgr pi realArg formalArg, t_substituteESWithAgr es realArg formalArg)
+  | TDisj (eff1, eff2) -> TDisj (substituteEffWithAgr eff1 realArg formalArg, substituteEffWithAgr eff2 realArg formalArg)
   ;;
 
-let substituteEffWithAgrs (eff:effect) (realArgs: expression list) (formal: (_type * var) list ) =
+let substituteEffWithAgrs (eff:t_effect) (realArgs: expression list) (formal: (_type * var) list ) =
   let realArgs' = List.filter (fun x -> 
                                 match x with 
                                 Unit -> false 
@@ -150,7 +154,7 @@ let substituteEffWithAgrs (eff:effect) (realArgs: expression list) (formal: (_ty
 
   let formalArgs = List.map (fun (a, b) -> b) formal in 
   let pairs = List.combine realArgs' formalArgs in 
-  let rec subArgOnebyOne (eff:effect) (pairs:(expression * var ) list): effect = 
+  let rec subArgOnebyOne (eff:t_effect) (pairs:(expression * var ) list): t_effect = 
     (match pairs with 
       [] -> eff 
     | (realArg, formalArg):: xs  -> 
@@ -162,7 +166,7 @@ let substituteEffWithAgrs (eff:effect) (realArgs: expression list) (formal: (_ty
 
 
 (*n >0 /\ A^n  -> n = 2 /\ n > 0 /\ A^n
-let substituteEffWithPure (eff:effect) (realArgs: expression list) (formal: (_type * var) list ) =
+let substituteEffWithPure (eff:t_effect) (realArgs: expression list) (formal: (_type * var) list ) =
     let exprToTerm (ex:expression):terms = 
       match ex with 
         Integer num -> Number num
@@ -178,17 +182,17 @@ let substituteEffWithPure (eff:effect) (realArgs: expression list) (formal: (_ty
     let constrains = List.map (fun (a, b) -> Eq (Var b, exprToTerm a )) pairs in 
 
     let consNew = List.fold_right (fun con acc -> PureAnd (acc, con ) ) (constrains) TRUE in 
-    addConstrain eff consNew
+    t_addConstrain eff consNew
     ;;
 
 *)
 
-let checkPrecondition (state:effect) (pre:effect)  = 
-  let reverseState =  (reverseEff state) in
-  let reversePre =  (reverseEff pre) in 
+let checkPrecondition (state:t_effect) (pre:t_effect)  = 
+  let reverseState =  (t_reverseEff state) in
+  let reversePre =  (t_reverseEff pre) in 
   (*check containment*)
-  let (result_tree, result, states, hypo) =  Rewriting.printReportHelper reverseState reversePre false in 
-  let tree = Node (showEntailmentEff reverseState reversePre, [result_tree]) in
+  let (result_tree, result, states, hypo) =  printReportHelper reverseState reversePre false in 
+  let tree = Node (string_of_TimedEntailmentEff reverseState reversePre, [result_tree]) in
 
   if result == false then 
   let printTree = printTree ~line_prefix:"* " ~get_name ~get_children tree in
@@ -209,9 +213,9 @@ let condToPure (expr :expression) :pure =
   | _ -> raise (Foo "exception in condToPure")
   ;;
 
-let rec verifier (caller:string) (expr:expression) (state_H:effect) (state_C:effect) (prog: program): effect = 
+let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t_effect) (prog: program): t_effect = 
   match expr with 
-    EventRaise (ev,p) -> concatEffEs state_C (Event (ev,p))
+    EventRaise (ev,p) -> concatEffEs state_C (Single (EV ev, CCTop,  []))
   | Seq (e1, e2) -> 
     let state_C' = verifier caller e1 state_H state_C prog in 
     verifier caller e2 state_H state_C' prog
@@ -220,14 +224,14 @@ let rec verifier (caller:string) (expr:expression) (state_H:effect) (state_C:eff
   | IfElse (e1, e2, e3) -> 
     let condIf = condToPure e1 in 
     let condElse = Neg condIf in 
-    let state_C_IF  = addConstrain state_C condIf in 
-    let state_C_ELSE  = addConstrain state_C condElse in 
-    Disj ((verifier caller e2 state_H state_C_IF prog), (verifier caller e3 state_H state_C_ELSE prog))
-  | Assertion eff ->   
+    let state_C_IF  = t_addConstrain state_C condIf in 
+    let state_C_ELSE  = t_addConstrain state_C condElse in 
+    TDisj ((verifier caller e2 state_H state_C_IF prog), (verifier caller e3 state_H state_C_ELSE prog))
+  | TAssertion eff ->   
     let his_cur =  (concatEffEff state_H state_C) in 
     let (result, tree) = checkPrecondition (his_cur) eff in 
     if result == true then state_C 
-    else raise (Foo ("Assertion " ^ showEffect eff ^" does not hold!"))
+    else raise (Foo ("TimedAssertion " ^ string_of_timedEff eff ^" does not hold!"))
             
   | Call (name, exprList) -> 
     (match searMeth prog name with 
@@ -267,10 +271,10 @@ let rec verifier (caller:string) (expr:expression) (state_H:effect) (state_C:eff
   | _ -> state_C
     ;;
 
-let rec extracPureFromPrecondition (eff:effect) :effect = 
+let rec extracPureFromPrecondition (eff:t_effect) :t_effect = 
   match eff with 
-    Effect (pi, es) -> Effect (pi, Emp)
-  | Disj (eff1, eff2) -> Disj (extracPureFromPrecondition eff1, extracPureFromPrecondition eff2)
+    TEff (pi, es) -> TEff (pi, ESEMP)
+  | TDisj (eff1, eff2) -> TDisj (extracPureFromPrecondition eff1, extracPureFromPrecondition eff2)
   ;;
 
 let rec verification (decl:(bool * declare)) (prog: program): string = 
@@ -282,16 +286,16 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
     Include str -> ""
   | Method (Meth (t, mn , list_parm, PrePost (pre, post), expression)) -> 
     let head = "[Verification for method: "^mn^"]\n"in 
-    let precon = "[Precondition: "^(showEffect ( pre)) ^ "]\n" in
-    let postcon = "[Postcondition: "^ (showEffect ( post)) ^ "]\n" in 
+    let precon = "[Precondition: "^(string_of_timedEff ( pre)) ^ "]\n" in
+    let postcon = "[Postcondition: "^ (string_of_timedEff ( post)) ^ "]\n" in 
     let acc =  (verifier mn expression (pre) (extracPureFromPrecondition pre) prog) in 
     
-    let accumulated = "[Real Effect: " ^(showEffect ( normalEffect acc 0)) ^ "]\n" in 
+    let accumulated = "[Real TEff: " ^(string_of_timedEff ( normalTimedEffect acc )) ^ "]\n" in 
     (*print_string((showEntailmentEff acc post) ^ "\n") ;*)
     
     (*let varList = (*append*) (getAllVarFromEff acc) (*(getAllVarFromEff post)*) in  
     *)
-    let (result_tree, result, states, hypos) =  Rewriting.printReportHelper acc post false in 
+    let (result_tree, result, states, hypos) =  printReportHelper acc post false in 
     let result = "[Result: "^ (if result then "Succeed" else "Fail") ^"]\n" in 
     let states = "[Explored "^ string_of_int (states+1)  ^ " States]\n" in 
     let verification_time = "[Verification Time: " ^ string_of_float (Sys.time() -. startTimeStamp) ^ " s]\n" in

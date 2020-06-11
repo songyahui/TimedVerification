@@ -118,6 +118,7 @@ let rec searMeth (prog: program) (name:string) : meth option=
     | Method (Meth (t, mn , list_parm, PrePost (pre, post), expression)) -> 
       if mn = name then Some (Meth (t, mn , list_parm, PrePost (pre, post), expression))
       else searMeth xs name 
+    | Predicate _ -> searMeth xs name
     )
     ;;
 
@@ -286,6 +287,7 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
   let startTimeStamp = Sys.time() in
   match dec with 
     Include str -> ""
+  | Predicate _ -> ""
   | Method (Meth (t, mn , list_parm, PrePost (pre, post), expression)) -> 
     let head = "[Verification for method: "^mn^"]\n"in 
     let precon = "[Precondition: "^(string_of_timedEff ( pre)) ^ "]\n" in
@@ -320,7 +322,11 @@ let rec printProg (pram: declare list) :string =
     let str = (match x with 
               Include str -> str ^ "\n" 
             | Method me -> printMeth me 
-    )in
+            | Predicate (name, (varList), t_eff) ->  
+              let parms = List.fold_left (fun acc a -> acc ^ ","^ a) "" varList  in 
+              name ^ " (" ^ parms ^") = " ^ string_of_timedEff  t_eff
+              )in 
+          
     str ^ printProg xs ;;
 
 let getIncl (d:declare) :bool = 

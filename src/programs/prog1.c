@@ -1,5 +1,10 @@
 #include "primitives.c"
 
+/*
+song (a, b ) = TRUE/\ emp 
+*/
+
+
 void send (int n) 
     /*
     require TRUE/\ emp 

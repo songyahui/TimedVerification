@@ -109,6 +109,8 @@ type param  = (_type * var) list
 
 type meth = Meth of _type * mn * param * spec * expression
 
-type declare = Include of string | Method of meth
+type pred = (mn * (var list) * t_effect)
+
+type declare = Include of string | Method of meth | Predicate of pred
 
 type program = declare list

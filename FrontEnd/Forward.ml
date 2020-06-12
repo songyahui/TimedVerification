@@ -72,10 +72,16 @@ let rec printExpr (expr: expression):string =
   ;;
 
 
-let rec printSpec (s:spec ) :string = 
+let rec printSpec (s:prepost ) :string = 
+  let helper (sp:spec) : string =  
+    match sp with 
+      PEFF eff -> string_of_timedEff eff 
+    | EFFCALL (mn, c)->  mn ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c 
+  in 
   match s with 
- (e1, e2) -> "\n[Pre: " ^ string_of_timedEff e1 ^ "]\n[Post:"^ string_of_timedEff e2 ^"]\n"
-
+  (e1, e2) -> "\n[Pre: " ^ helper e1 ^ "]\n[Post:"^ helper e2 ^"]\n"
+ 
+ ;;
 
 
 let rec input_lines file =
@@ -83,7 +89,7 @@ let rec input_lines file =
    [] -> []
   | [line] -> (String.trim line) :: input_lines file
   | _ -> failwith "Weird input_line return value"
-
+;;
 
 let rec concatEffEs (eff:t_effect) (es:t_es) : t_effect = 
   match eff with 
@@ -245,9 +251,8 @@ let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t
       (
 
         match me with 
-         (t, mn , list_parm, (pre, post), expression) -> 
+         (t, mn , list_parm, (PEFF pre, PEFF post), expression) -> 
           
-            
             let subPre = substituteEffWithAgrs pre exprList list_parm in 
             let subPost = substituteEffWithAgrs post exprList list_parm in 
             (*
@@ -268,7 +273,7 @@ let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t
             
             raise (Foo ("PreCondition does not hold when " ^ caller^" is calling: "^ name ^"!"))
             
-      
+        | _ -> raise (Foo "verifier: should replce the effects call! \n")
       )
     )
   | _ -> state_C
@@ -280,7 +285,11 @@ let rec extracPureFromPrecondition (eff:t_effect) :t_effect =
   | TDisj (eff1, eff2) -> TDisj (extracPureFromPrecondition eff1, extracPureFromPrecondition eff2)
   ;;
 
-let rec verification (decl:(bool * declare)) (prog: program): string = 
+let rec substituteEffectCall (mn, cList) (prog: program):t_effect = 
+  TEff(TRUE, ESEMP)
+  ;;
+
+let rec verification (decl:(bool * declare)) (prog: program) : string = 
   let (isIn, dec) = decl in 
   if isIn == false then ""
   else 
@@ -288,7 +297,7 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
   match dec with 
     Include str -> ""
   | Predicate _ -> ""
-  | Method  (t, mn , list_parm, (pre, post), expression) -> 
+  | Method  (t, mn , list_parm, (PEFF pre, PEFF post), expression) -> 
     let head = "[Verification for method: "^mn^"]\n"in 
     let precon = "[Precondition: "^(string_of_timedEff ( pre)) ^ "]\n" in
     let postcon = "[Postcondition: "^ (string_of_timedEff ( post)) ^ "]\n" in 
@@ -305,7 +314,14 @@ let rec verification (decl:(bool * declare)) (prog: program): string =
     let verification_time = "[Verification Time: " ^ string_of_float (Sys.time() -. startTimeStamp) ^ " s]\n" in
     let printTree = printTree ~line_prefix:"* " ~get_name ~get_children result_tree in
     "=======================\n"^ head ^ precon ^ accumulated ^ postcon ^ result ^ states ^verification_time^ "\n" ^ printTree ^ "\n" 
-    
+  | Method  (t, mn , list_parm, (EFFCALL (name, cList), post), expression) -> 
+    let temp = substituteEffectCall (name, cList) prog in 
+    verification (isIn, Method  (t, mn , list_parm, (PEFF temp, post), expression)) prog
+
+  | Method  (t, mn , list_parm, (pre, EFFCALL (name, cList)), expression) -> 
+    let temp = substituteEffectCall (name, cList) prog in 
+    verification (isIn, Method  (t, mn , list_parm, (pre, PEFF temp), expression)) prog
+
  ;;
 
 let rec printMeth (me:meth) :string = 

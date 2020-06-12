@@ -102,12 +102,14 @@ type expression = Unit
           | Deadline of cocon 
           | Reset of (clock list)
 
-type spec = t_effect * t_effect
 
+type spec = PEFF of t_effect | EFFCALL of mn * (event list)
+
+type prepost = spec * spec
 
 type param  = (_type * var) list
 
-type meth = _type * mn * param * spec * expression
+type meth = _type * mn * param * prepost * expression
 
 type pred = (mn * (var list) * t_effect)
 

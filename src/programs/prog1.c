@@ -1,14 +1,14 @@
 #include "primitives.c"
 
 /*
-song (a, b ) = TRUE/\ emp 
+song <a, b > = TRUE/\ emp 
 */
 
 
 void send (int n) 
     /*
-    require TRUE/\ emp 
-    ensure TRUE /\ [ Done, _ , {} ] . [ emp, _ , {x} ] . [ emp, x < 10, {} ]
+    require song <a, b>
+    ensure (TRUE /\ [ Done, _ , {} ] . [ emp, _ , {x} ] . [ emp, x < 10, {} ])
     */
 {
 

@@ -93,7 +93,7 @@ expres:
 
 meth : t = type_   name = VAR   LPAR p = param RPAR s = spec LBRACK e = expres RBRACK {Method  (t , name, p, s, e)}
 head : SHARP INCLUDE str= STRING {Include str} 
-pred : LSPEC nm = VAR LPAR  re = existVar RPAR EQ eff= t_effect RSPEC {Predicate (nm, re, eff)}
+pred : LSPEC nm = VAR LT  re = existVar GT EQ eff= t_effect RSPEC {Predicate (nm, re, eff)}
 
 prog_rest:
 | EOF {[]}
@@ -104,7 +104,11 @@ prog:
 | hd =head  p = prog_rest {append [hd] p}
 | pd =pred  p = prog_rest {append [pd] p}
 
-spec: LSPEC REQUIRE e1 = t_effect  ENSURE e2 = t_effect RSPEC {(e1, e2)}
+spec_help : 
+| LPAR eff = t_effect RPAR{PEFF eff}
+| nm = VAR LT  re = existVar GT {EFFCALL (nm,  re)}
+
+spec: LSPEC REQUIRE e1 = spec_help  ENSURE e2 = spec_help RSPEC {(e1, e2)}
 
 term:
 | str = VAR { Var str }

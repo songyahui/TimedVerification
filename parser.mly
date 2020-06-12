@@ -197,7 +197,7 @@ cocon:
 
 transition: 
 | LBrackets EMPTY COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets {  (TEmp, cc , re)}
-| LBrackets ev= EVENT COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets {  (EV ev, cc , re)}
+| LBrackets ev= VAR COMMA cc =cocon COMMA LBRACK re = existVar RBRACK RBrackets {  (EV ev, cc , re)}
 
 
 t_es:

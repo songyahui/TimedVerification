@@ -145,8 +145,6 @@ let rec substitutePureWithAgr (pi:pure) (realArg:expression) (formalArg: var):pu
   ;;
 
 
-
-
 let rec substituteEffWithAgr (eff:t_effect) (realArg:expression) (formalArg: var):t_effect = 
   match eff with 
     TEff (pi, es) -> TEff (substitutePureWithAgr pi realArg formalArg, t_substituteESWithAgr es realArg formalArg)
@@ -285,8 +283,50 @@ let rec extracPureFromPrecondition (eff:t_effect) :t_effect =
   | TDisj (eff1, eff2) -> TDisj (extracPureFromPrecondition eff1, extracPureFromPrecondition eff2)
   ;;
 
+
+
+let substituteEffectCallAgr eff formalArgs realArgs: t_effect = 
+  let rec subTESwithEvent (es:t_es) (f) (r) :t_es = 
+    match es with 
+    | Single (ev, b, c) ->
+    (
+      match ev with 
+      TEmp -> es 
+    | EV str -> if String.compare str f == 0 then Single (EV r, b, c) else es
+
+    )
+    | TCons (es1, es2) -> TCons (subTESwithEvent es1 f r, subTESwithEvent es2 f r)
+    | TOr (es1, es2) -> TOr (subTESwithEvent es1 f r, subTESwithEvent es2 f r)
+    | TNtimes (es1, t) -> TNtimes (subTESwithEvent es1 f r, t)
+    | TKleene (es1) -> TKleene (subTESwithEvent es1 f r)
+    | TNot (es1) -> TNot (subTESwithEvent es1 f r)
+    | _ -> es 
+  in
+
+  let rec helper (acc:t_effect) (formal) (real) :t_effect = 
+    match acc with 
+      TEff (pi, es) ->  TEff (pi, subTESwithEvent es formal real)
+    | TDisj (eff1, eff2) -> TDisj (helper eff1 formal real, helper eff2 formal real)  
+  in 
+  let pairs = List.combine formalArgs realArgs in 
+  List.fold_left (fun acc (f, r) -> helper eff f r) eff pairs
+
+;;
+
+
 let rec substituteEffectCall (mn, cList) (prog: program):t_effect = 
-  TEff(TRUE, ESEMP)
+    match prog with 
+      [] -> raise (Foo ("predicate "^ mn ^" is not defined!\n"))
+    | x ::xs  -> 
+    (
+      match x with 
+        Predicate (name, varL, eff) ->
+          if String.compare name mn == 0 then   
+            substituteEffectCallAgr eff varL cList
+            
+          else substituteEffectCall (mn, cList)  xs 
+      | _ -> substituteEffectCall (mn, cList)  xs 
+    )
   ;;
 
 let rec verification (decl:(bool * declare)) (prog: program) : string = 

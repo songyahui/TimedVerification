@@ -480,8 +480,9 @@ let rec t_derivative (p :pure) (es:t_es) (varL: var list) (tran:t_trans): (t_eff
   | Single tran1 ->
   (
     match (tran1, tran) with 
-      ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
-    | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> if String.compare ev1 ev == 0 && entailConstrains (coconToPure c1) (coconToPure c) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+      ( (TEmp, c1, re1),  (TEmp, c, re)) ->  if entailConstrains (coconToPure c) (coconToPure c1) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
+    | ( (EV ev1, c1, re1),  (EV ev, c, re)) -> 
+    if String.compare ev1 ev == 0 && entailConstrains (coconToPure c) (coconToPure c1) && subsetOf re re1 then TEff (p, ESEMP) else TEff (p,  Nil)
     | _ -> TEff (p,  Nil)
   )
   | TAny -> TEff (p, ESEMP)

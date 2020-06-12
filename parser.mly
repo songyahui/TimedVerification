@@ -9,7 +9,7 @@
 %token <bool> FALSEE
 %token EMPTY ASSERTKEY EVENTKEY CHOICE LPAR RPAR CONCAT OMEGA POWER PLUS MINUS TRUE FALSE DISJ CONJ   ENTIL INTT BOOLT VOIDT 
 %token LBRACK RBRACK COMMA SIMI  IF ELSE REQUIRE ENSURE LSPEC RSPEC RETURN LBrackets  RBrackets
-%token EOF GT LT EQ GTEQ LTEQ INCLUDE SHARP EQEQ UNDERLINE KLEENE NEGATION DEADLINE RESET TASSERTKEY
+%token EOF GT LT EQ GTEQ LTEQ INCLUDE SHARP EQEQ UNDERLINE KLEENE NEGATION DEADLINE RESET TASSERTKEY TRIPLE
 
 (*%token FUTURE GLOBAL IMPLY LTLNOT NEXT UNTIL LILAND LILOR*)
 
@@ -75,6 +75,7 @@ expres_help :
 
 | DEADLINE LPAR c = cocon RPAR {Deadline c}
 | RESET LPAR re = existVar RPAR {Reset re}
+| TRIPLE LPAR ev = STRING COMMA c = cocon COMMA re = existVar RPAR {Triple (ev, c, re)}
 
 cond:
 | e1 = expres_help  EQEQ e2 = expres_help {Cond (e1, e2 ,"==")}
@@ -202,8 +203,8 @@ transition:
 
 t_es:
 | EMPTY { ESEMP }
-| tran = transition { Single tran }
 | UNDERLINE {TAny}
+| tran = transition { Single tran }
 | a = t_es CONCAT b = t_es { TCons(a, b) } 
 | a = t_es CHOICE b = t_es { TOr(a, b) }
 | LPAR a = t_es POWER KLEENE RPAR{TKleene a}

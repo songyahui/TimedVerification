@@ -101,6 +101,8 @@ type expression = Unit
           | TAssertion of t_effect
           | Deadline of cocon 
           | Reset of (clock list)
+          | Triple of (event * cocon * (clock list))
+
 
 
 type spec = PEFF of t_effect | EFFCALL of mn * (event list)

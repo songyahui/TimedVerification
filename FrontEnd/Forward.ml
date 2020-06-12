@@ -68,6 +68,7 @@ let rec printExpr (expr: expression):string =
   | TAssertion tEff -> "Timed Assert: " ^ string_of_timedEff tEff
   | Deadline constrains -> "Deadline: " ^ string_of_cocons constrains
   | Reset c ->  "Reset: " ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c 
+  | Triple (a, b, c) -> "Triple: <" ^ a ^"," ^string_of_cocons b ^"," ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c ^">"
 
   ;;
 
@@ -223,6 +224,8 @@ let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t
     EventRaise (ev,p) -> concatEffEs state_C (Single (EV ev, CCTop,  []))
   | Deadline cocon  -> concatEffEs state_C (Single (TEmp, cocon,  []))
   | Reset c ->  concatEffEs state_C (Single (TEmp, CCTop,  c))
+  | Triple (a, b, c)  -> concatEffEs state_C (Single (EV a, b,  c))
+
   | Seq (e1, e2) -> 
     let state_C' = verifier caller e1 state_H state_C prog in 
     verifier caller e2 state_H state_C' prog
@@ -309,7 +312,7 @@ let substituteEffectCallAgr eff formalArgs realArgs: t_effect =
     | TDisj (eff1, eff2) -> TDisj (helper eff1 formal real, helper eff2 formal real)  
   in 
   let pairs = List.combine formalArgs realArgs in 
-  List.fold_left (fun acc (f, r) -> helper eff f r) eff pairs
+  List.fold_left (fun acc (f, r) -> helper acc f r) eff pairs
 
 ;;
 

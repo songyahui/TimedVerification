@@ -101,6 +101,7 @@ type expression = Unit
           | TAssertion of t_effect
           | Deadline of cocon 
           | Reset of (clock list)
+          | Delay of int 
           | Triple of (event * cocon * (clock list))
 
 

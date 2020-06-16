@@ -11,8 +11,13 @@ void send (int n)
     ensure song <Done> 
     */
 {
-
+    if (n==0) {
     event ("Done");
     reset (x);
     ddl (x < 10);
+    }
+    else {
+
+    delay (1);
+    }
 } 

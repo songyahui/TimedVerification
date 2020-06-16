@@ -36,6 +36,7 @@ rule token = parse
 | "void" {VOIDT}
 | "event" {EVENTKEY}
 | "ddl" {DEADLINE} 
+| "delay" {DELAY}
 | "triple" {TRIPLE}
 | "reset" {RESET}
 | "assert" {ASSERTKEY}

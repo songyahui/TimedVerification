@@ -68,6 +68,7 @@ let rec printExpr (expr: expression):string =
   | TAssertion tEff -> "Timed Assert: " ^ string_of_timedEff tEff
   | Deadline constrains -> "Deadline: " ^ string_of_cocons constrains
   | Reset c ->  "Reset: " ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c 
+  | Delay n -> "Delay " ^ string_of_int n
   | Triple (a, b, c) -> "Triple: <" ^ a ^"," ^string_of_cocons b ^"," ^ List.fold_left (fun acc a -> acc ^ " "^ a) "" c ^">"
 
   ;;
@@ -223,6 +224,8 @@ let rec verifier (caller:string) (expr:expression) (state_H:t_effect) (state_C:t
   match expr with 
     EventRaise (ev,p) -> concatEffEs state_C (Single (EV ev, CCTop,  []))
   | Deadline cocon  -> concatEffEs state_C (Single (TEmp, cocon,  []))
+  | Delay n -> raise (Foo "delay.........\n")
+
   | Reset c ->  concatEffEs state_C (Single (TEmp, CCTop,  c))
   | Triple (a, b, c)  -> concatEffEs state_C (Single (EV a, b,  c))
 
